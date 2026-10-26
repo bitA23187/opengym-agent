@@ -139,7 +139,7 @@ The full list of what changed release by release is in the [changelog](CHANGELOG
 
 ## Quick start — Agent 扩展版
 
-先读 [给 AI Agent 的部署指南](docs/AGENT_DEPLOYMENT.md)。有仓库访问权后：
+先读 [给 AI Agent 的部署指南](docs/AGENT_DEPLOYMENT.md)。仓库公开，可直接克隆：
 
 ```bash
 git clone --branch agent-v0.1.0 --depth 1 https://github.com/bitA23187/opengym-agent.git

@@ -3,8 +3,8 @@
 ## 交付方式
 
 分享 `https://github.com/bitA23187/opengym-agent`，首次版本固定为 `agent-v0.1.0`。
-仓库保持私有；由所有者在 GitHub 的协作者设置中邀请朋友。朋友使用自己的
-GitHub 身份克隆，再把 `docs/AGENT_DEPLOYMENT.md` 交给 Agent。
+仓库已按维护者要求公开；朋友可直接克隆，无需协作者邀请或 GitHub 令牌，
+再把 `docs/AGENT_DEPLOYMENT.md` 交给 Agent。自己的服务与数据仍需独立部署和授权。
 
 分享仓库从清理后的源码快照开始，不继承私人开发历史。旧仓库保留为独立私有归档，
 不要将归档仓库的访问权授予只需要这个项目源码的协作者。历史分支还原包只保存在

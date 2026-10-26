@@ -35,7 +35,7 @@ cp agent.env.example agent.env
 chmod 600 agent.env
 ```
 
-私有仓库需要部署者先获得访问权，并使用自己的 GitHub 登录或受限部署凭据。不要向维护者索要个人访问令牌。`--branch` 可以检出 tag，出现 detached HEAD 是预期；开始修改时另建分支：
+本仓库公开，克隆源码不需要 GitHub 登录或个人访问令牌。自己的部署凭据仍须留在本机。`--branch` 可以检出 tag，出现 detached HEAD 是预期；开始修改时另建分支：
 
 ```sh
 git switch -c codex/my-change
@@ -138,6 +138,6 @@ node scripts/build-api-docs.mjs --check
 
 ## 8. 分享前检查
 
-只提交源码和占位示例，不提交 `agent.env`、`.env`、`data/`、备份、私钥、证书、设备凭据、Apple 签名身份、原生输出或个人日志。私有仓库的协作者能看到仓库中可访问的历史与 PR，不仅是默认分支。
+只提交源码和占位示例，不提交 `agent.env`、`.env`、`data/`、备份、私钥、证书、设备凭据、Apple 签名身份、原生输出或个人日志。公开仓库的访问者可以查看可访问的历史、标签与 PR，不仅是默认分支。
 
-发布前从干净 clone 跑构建和验收，检查 `git ls-files`、暂存内容、标签及 GitHub 分支/PR。可用 `gitleaks git . --redact` 扫描历史；校验和与测试常量需人工辨别。发现真实密钥必须撤销/轮换，删除文件或分支不能证明 GitHub 缓存、旧 clone、PR 引用已经消失。保持仓库私有，邀请朋友为协作者即可。
+发布前从干净 clone 跑构建和验收，检查 `git ls-files`、暂存内容、标签及 GitHub 分支/PR。可用 `gitleaks git . --redact` 扫描历史；校验和与测试常量需人工辨别。发现真实密钥必须撤销/轮换，删除文件或分支不能证明 GitHub 缓存、旧 clone、PR 引用已经消失。本分享仓库公开；私人归档继续保持私有，不将其历史或数据推到这里。
