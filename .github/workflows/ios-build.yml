@@ -1,0 +1,37 @@
+name: iOS unsigned build
+# Explicit invocation only. This builds artifacts; it does not publish or sign an app.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend packages
+        run: npm ci
+        working-directory: frontend
+      - name: Install CocoaPods if needed
+        run: command -v pod || brew install cocoapods
+      - name: Verify synchronization protocol
+        run: |
+          swiftc frontend/ios/App/App/HealthSyncModels.swift frontend/ios/Tests/HealthSyncModelsTests.swift -o "$RUNNER_TEMP/health-sync-tests"
+          "$RUNNER_TEMP/health-sync-tests"
+      - name: Check frontend synchronization
+        run: npx vitest run src/lib/healthkit.test.js src/components/NativeHealthSync.test.jsx
+        working-directory: frontend
+      - name: Build unsigned simulator and device apps
+        run: npm run build:ios
+        working-directory: frontend
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opengym-ios-unsigned
+          path: frontend/ios/App/output/*/Build/Products/Release-*/*.app
+          if-no-files-found: error

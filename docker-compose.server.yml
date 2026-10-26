@@ -1,0 +1,102 @@
+# Legacy topology example; not an executable portable deployment.
+# New installations MUST use docker-compose.agent.yml and docs/AGENT_DEPLOYMENT.md.
+# Only the trusted tunnel connector joins the dedicated ingress network. No host ports.
+x-logging: &bounded-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  api:
+    # Plugin v0.7.0: nutrition and daily health, preserving workout heart-rate storage.
+    image: opengym-agent-api:local
+    pull_policy: never
+    platform: linux/amd64
+    restart: unless-stopped
+    user: "1000:1000"
+    init: true
+    mem_limit: 384m
+    memswap_limit: 384m
+    cpus: "0.50"
+    pids_limit: 128
+    logging: *bounded-logging
+    healthcheck:
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    env_file:
+      - .env
+    environment:
+      PORT: "3000"
+      DATA_DIR: /data
+      TRUST_PROXY: "1"
+      COACH_DISABLED: "1"
+      PLUGIN_ENABLED: "1"
+      PLUGIN_DEFAULT_TIMEZONE: "Asia/Taipei"
+      # Comma-separated account IDs whose owners explicitly opted into direct
+      # training-record saves. Plans/deletions/context still require confirmation.
+      PLUGIN_TRAINING_AUTO_SAVE_USER_IDS: ${PLUGIN_TRAINING_AUTO_SAVE_USER_IDS:-}
+    volumes:
+      - /opt/opengym/data:/data
+    expose:
+      - "3000"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - default
+
+  web:
+    image: opengym-agent-web:local
+    pull_policy: never
+    platform: linux/amd64
+    restart: unless-stopped
+    mem_limit: 128m
+    memswap_limit: 128m
+    cpus: "0.50"
+    pids_limit: 64
+    logging: *bounded-logging
+    healthcheck:
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NGINX_PORT: "8080"
+      BACKEND: api
+      PORT: "3000"
+      RESOLVER: 127.0.0.11
+      BASE_PATH: ""
+      MEDIA_UPLOAD_MAX: 48m
+      # Real-IP module trusts only the connector; the template forwards its validated
+      # $remote_addr as X-Forwarded-For. Never pass raw client-supplied CF headers to API.
+      CF_CONNECTING_IP: ""
+    volumes:
+      - ./web/server-security.conf:/etc/nginx/conf.d/00-security.conf:ro
+      - ./web/nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./shortcuts:/usr/share/nginx/html/shortcuts:ro
+    expose:
+      - "8080"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      default: {}
+      ingress:
+        ipv4_address: 172.30.0.3
+        aliases:
+          - opengym-web
+
+networks:
+  ingress:
+    external: true
+    name: opengym_ingress

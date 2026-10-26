@@ -1,0 +1,434 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		069600769695A3E11283EFF7 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9215EE28E6E3F630FB268677 /* Foundation.framework */; };
+		09ABE9349470495B41400C4A /* OpenGymWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E457D65D1416F9ED5E7F73 /* OpenGymWatchApp.swift */; };
+		2921C3FD56CCB2A8FFCE002C /* WatchTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 343D10B20D3DA6B88D2AB106 /* WatchTransport.swift */; };
+		2A48AB8FE076D43C4F9B3957 /* WatchPairingStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6D00464FF193AB3ECED5856 /* WatchPairingStorage.swift */; };
+		34B52D4F0F9EFD3F4351A7EB /* WatchStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 070E852DFBD7F4D7248F20D0 /* WatchStorage.swift */; };
+		355B27B7B3F0A9149C070A85 /* PairingConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F46648853994B24F2248EF9D /* PairingConnectionView.swift */; };
+		396A082A1E58E24CCE1ECE35 /* WatchHealthReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51748FF038E398DFDE76C56 /* WatchHealthReader.swift */; };
+		47932DA2804BEBBC7983D740 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 46C451A0326D263A7887E169 /* Assets.xcassets */; };
+		5ED286C82AF8D9AA94C69E50 /* WatchSyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85B33481CADE4E512268DD39 /* WatchSyncEngine.swift */; };
+		600429CED230F37FDD75D5F3 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B9D58EF45A116B77D9B6BC0 /* ContentView.swift */; };
+		7FF24D49A6F44A6D2FC6E46E /* WatchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF7B3EED7789A883BDE5E3B /* WatchViewModel.swift */; };
+		85E4F4115C2AB58390CCC0E6 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DC551CF30C8E5A07A014718 /* HealthKit.framework */; };
+		C90CE014B437E4C091807070 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6883BC85456DCA4194B789D5 /* Security.framework */; };
+		D7D24C9EBCC3A7B278F127B0 /* WatchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63C0020F5B29F04F200784B9 /* WatchModels.swift */; };
+		DD5BCD45A29E1D87BFCA582A /* HealthSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A46E87C52F828AD77CB79CF /* HealthSyncModels.swift */; };
+		FBC6820D5327C78A74970A99 /* WatchPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DBD6E901C4E87BE9194C931 /* WatchPairing.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		070E852DFBD7F4D7248F20D0 /* WatchStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchStorage.swift; sourceTree = "<group>"; };
+		2DBD6E901C4E87BE9194C931 /* WatchPairing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchPairing.swift; sourceTree = "<group>"; };
+		343D10B20D3DA6B88D2AB106 /* WatchTransport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchTransport.swift; sourceTree = "<group>"; };
+		3A46E87C52F828AD77CB79CF /* HealthSyncModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = HealthSyncModels.swift; path = ../ios/App/App/HealthSyncModels.swift; sourceTree = "<group>"; };
+		46C451A0326D263A7887E169 /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		49A5804C4627A8C1E3D8F0C9 /* OpenGymWatch.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = OpenGymWatch.entitlements; sourceTree = "<group>"; };
+		5329674DFE5EB7B9D7A0A7C9 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		5DC551CF30C8E5A07A014718 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS26.0.sdk/System/Library/Frameworks/HealthKit.framework; sourceTree = DEVELOPER_DIR; };
+		63C0020F5B29F04F200784B9 /* WatchModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchModels.swift; sourceTree = "<group>"; };
+		64114EC735265429C5CFA3EB /* OpenGymWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenGymWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6883BC85456DCA4194B789D5 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS26.0.sdk/System/Library/Frameworks/Security.framework; sourceTree = DEVELOPER_DIR; };
+		85B33481CADE4E512268DD39 /* WatchSyncEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchSyncEngine.swift; sourceTree = "<group>"; };
+		9215EE28E6E3F630FB268677 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		9B9D58EF45A116B77D9B6BC0 /* ContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A6D00464FF193AB3ECED5856 /* WatchPairingStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchPairingStorage.swift; sourceTree = "<group>"; };
+		BEF7B3EED7789A883BDE5E3B /* WatchViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchViewModel.swift; sourceTree = "<group>"; };
+		C51748FF038E398DFDE76C56 /* WatchHealthReader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchHealthReader.swift; sourceTree = "<group>"; };
+		E4E457D65D1416F9ED5E7F73 /* OpenGymWatchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenGymWatchApp.swift; sourceTree = "<group>"; };
+		F46648853994B24F2248EF9D /* PairingConnectionView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PairingConnectionView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		CADAFF8C3B286728F58CB6B2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				069600769695A3E11283EFF7 /* Foundation.framework in Frameworks */,
+				85E4F4115C2AB58390CCC0E6 /* HealthKit.framework in Frameworks */,
+				C90CE014B437E4C091807070 /* Security.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		00C18FAE4D8B98ABAF6BD7A5 = {
+			isa = PBXGroup;
+			children = (
+				582017CD13D7C97FCA20A9C0 /* Products */,
+				ED8FB0F4248E9884C5AB4601 /* Frameworks */,
+				29EACF2FA75A74FF8EBDCA74 /* App */,
+				97C600942F30D4D1B11480A1 /* Core */,
+				E06C98EBDC6CFD07C8A03D55 /* Shared iPhone Protocol */,
+			);
+			sourceTree = "<group>";
+		};
+		1FF4B15AD25318C1264655C2 /* watchOS */ = {
+			isa = PBXGroup;
+			children = (
+				9215EE28E6E3F630FB268677 /* Foundation.framework */,
+				5DC551CF30C8E5A07A014718 /* HealthKit.framework */,
+				6883BC85456DCA4194B789D5 /* Security.framework */,
+			);
+			name = watchOS;
+			sourceTree = "<group>";
+		};
+		29EACF2FA75A74FF8EBDCA74 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				9B9D58EF45A116B77D9B6BC0 /* ContentView.swift */,
+				E4E457D65D1416F9ED5E7F73 /* OpenGymWatchApp.swift */,
+				C51748FF038E398DFDE76C56 /* WatchHealthReader.swift */,
+				070E852DFBD7F4D7248F20D0 /* WatchStorage.swift */,
+				343D10B20D3DA6B88D2AB106 /* WatchTransport.swift */,
+				BEF7B3EED7789A883BDE5E3B /* WatchViewModel.swift */,
+				5329674DFE5EB7B9D7A0A7C9 /* Info.plist */,
+				49A5804C4627A8C1E3D8F0C9 /* OpenGymWatch.entitlements */,
+				46C451A0326D263A7887E169 /* Assets.xcassets */,
+				F46648853994B24F2248EF9D /* PairingConnectionView.swift */,
+				A6D00464FF193AB3ECED5856 /* WatchPairingStorage.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		582017CD13D7C97FCA20A9C0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				64114EC735265429C5CFA3EB /* OpenGymWatch.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		97C600942F30D4D1B11480A1 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				63C0020F5B29F04F200784B9 /* WatchModels.swift */,
+				85B33481CADE4E512268DD39 /* WatchSyncEngine.swift */,
+				2DBD6E901C4E87BE9194C931 /* WatchPairing.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		E06C98EBDC6CFD07C8A03D55 /* Shared iPhone Protocol */ = {
+			isa = PBXGroup;
+			children = (
+				3A46E87C52F828AD77CB79CF /* HealthSyncModels.swift */,
+			);
+			name = "Shared iPhone Protocol";
+			sourceTree = "<group>";
+		};
+		ED8FB0F4248E9884C5AB4601 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				1FF4B15AD25318C1264655C2 /* watchOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C2244C9412B00369B7BDE765 /* OpenGymWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BB1D63F463E638DD3B2897ED /* Build configuration list for PBXNativeTarget "OpenGymWatch" */;
+			buildPhases = (
+				6EE23DFEDE70971BCA4C54E8 /* Sources */,
+				CADAFF8C3B286728F58CB6B2 /* Frameworks */,
+				052580BEA848DE4E265706A2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OpenGymWatch;
+			productName = OpenGymWatch;
+			productReference = 64114EC735265429C5CFA3EB /* OpenGymWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		012669CC56FF01E5C99E0DB5 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 2710;
+				TargetAttributes = {
+					C2244C9412B00369B7BDE765 = {
+						CreatedOnToolsVersion = 27.1;
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+						SystemCapabilities = {
+							com.apple.HealthKit = {
+								enabled = 1;
+							};
+						};
+					};
+				};
+			};
+			buildConfigurationList = 1658930037052F6FD60D1911 /* Build configuration list for PBXProject "OpenGymWatch" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = "zh-Hans";
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				"zh-Hans",
+				en,
+				Base,
+			);
+			mainGroup = 00C18FAE4D8B98ABAF6BD7A5;
+			productRefGroup = 582017CD13D7C97FCA20A9C0 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C2244C9412B00369B7BDE765 /* OpenGymWatch */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		052580BEA848DE4E265706A2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				47932DA2804BEBBC7983D740 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		6EE23DFEDE70971BCA4C54E8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				600429CED230F37FDD75D5F3 /* ContentView.swift in Sources */,
+				09ABE9349470495B41400C4A /* OpenGymWatchApp.swift in Sources */,
+				396A082A1E58E24CCE1ECE35 /* WatchHealthReader.swift in Sources */,
+				34B52D4F0F9EFD3F4351A7EB /* WatchStorage.swift in Sources */,
+				2921C3FD56CCB2A8FFCE002C /* WatchTransport.swift in Sources */,
+				7FF24D49A6F44A6D2FC6E46E /* WatchViewModel.swift in Sources */,
+				D7D24C9EBCC3A7B278F127B0 /* WatchModels.swift in Sources */,
+				5ED286C82AF8D9AA94C69E50 /* WatchSyncEngine.swift in Sources */,
+				DD5BCD45A29E1D87BFCA582A /* HealthSyncModels.swift in Sources */,
+				355B27B7B3F0A9149C070A85 /* PairingConnectionView.swift in Sources */,
+				2A48AB8FE076D43C4F9B3957 /* WatchPairingStorage.swift in Sources */,
+				FBC6820D5327C78A74970A99 /* WatchPairing.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		2646D4541A679E86722DB8AC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = App/OpenGymWatch.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 6;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenGym;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取手表上的睡眠、静息心率、HRV、训练和心率。仅在你手动同步时，将三类日常健康数据上传到你配置的 OpenGym 服务器。";
+				INFOPLIST_KEY_WKWatchOnly = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 0.4.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.opengym.watchsync.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				VALIDATE_PRODUCT = YES;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Release;
+		};
+		4E3C70B9DAC525D11CE32B7E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		E473A7A878A62B2FDF59A693 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		F2F91207402AE8482964F3A8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = App/OpenGymWatch.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 6;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenGym;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "读取手表上的睡眠、静息心率、HRV、训练和心率。仅在你手动同步时，将三类日常健康数据上传到你配置的 OpenGym 服务器。";
+				INFOPLIST_KEY_WKWatchOnly = YES;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 0.4.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.opengym.watchsync.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1658930037052F6FD60D1911 /* Build configuration list for PBXProject "OpenGymWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E473A7A878A62B2FDF59A693 /* Debug */,
+				4E3C70B9DAC525D11CE32B7E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BB1D63F463E638DD3B2897ED /* Build configuration list for PBXNativeTarget "OpenGymWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2646D4541A679E86722DB8AC /* Release */,
+				F2F91207402AE8482964F3A8 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 012669CC56FF01E5C99E0DB5 /* Project object */;
+}

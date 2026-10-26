@@ -1,0 +1,20 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { boundPort } from '../../test/helpers.mjs';
+test('optional Plugin boots inside the real API without changing existing endpoints',async t=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'opengym-plugin-api-'));
+ const child=spawn(process.execPath,[new URL('../../server.js',import.meta.url).pathname],{env:{...process.env,PORT:'0',DATA_DIR:dir,ORIGIN:'https://gym.test',RP_ID:'gym.test',PLUGIN_ENABLED:'1',COACH_DISABLED:'1',FIRST_USER_ADMIN:'0',INVITE_ONLY:'1',ALLOW_GUEST:'0'},stdio:['ignore','pipe','pipe']});
+ let output='';child.stdout.on('data',d=>output+=d);child.stderr.on('data',d=>output+=d);
+ t.after(async()=>{child.kill();await new Promise(r=>child.exitCode!==null?r():child.once('exit',r));fs.rmSync(dir,{recursive:true,force:true});});
+ const port=await boundPort(child,()=>output),base='http://127.0.0.1:'+port;
+ const health=await fetch(base+'/api/health');assert.equal(health.status,200);
+ const old=await fetch(base+'/api/data');assert.equal(old.status,401);
+ const metadata=await fetch(base+'/.well-known/oauth-authorization-server');assert.equal(metadata.status,200);assert.equal((await metadata.json()).issuer,'https://gym.test');
+ const rpc=await fetch(base+'/api/plugin/mcp',{method:'POST',headers:{'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list',params:{}})});
+ assert.equal(rpc.status,200);assert.equal((await rpc.json()).result.tools.length,27);
+ assert.ok(!fs.readdirSync(dir).some(n=>n.startsWith('state-')));
+});

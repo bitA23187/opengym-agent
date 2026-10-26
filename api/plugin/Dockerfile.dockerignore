@@ -1,0 +1,36 @@
+# This overlay intentionally carries the locked, preinstalled pure-JS plugin
+# dependencies. Root .dockerignore excludes node_modules; Docker uses this file
+# instead when building with -f api/plugin/Dockerfile.
+**
+!api
+!api/server.js
+!api/heart-rate.js
+!api/heart-rate-data.js
+!api/heart-rate-time.js
+!api/heart-rate-metrics.js
+!api/health-upload-credentials.js
+!api/daily-health.js
+!api/daily-health-data.js
+!api/nutrition-state.js
+!api/watch-credentials.js
+!api/watch-pairing.js
+!api/vendor
+!api/vendor/**
+!api/sync-stamps.js
+!api/plugin
+!api/plugin/**
+!api/test
+!api/test/helpers.mjs
+!frontend
+!frontend/package.json
+!frontend/src
+!frontend/src/lib
+!frontend/src/lib/**
+!frontend/src/locales
+!frontend/src/locales/zh.js
+!frontend/src/instr
+!frontend/src/instr/en.js
+!frontend/src/instr/zh.js
+!catalogue
+!catalogue/i18n
+!catalogue/i18n/zh.json

@@ -1,0 +1,54 @@
+# Exercise media downloaded by installs before v1.4.0 (now in catalogue/media); kept ignored so an
+# old folder never gets committed by accident
+media/img/
+media/gif/
+
+# Runtime data — users, passkeys, per-user state, session secret
+data/
+coach-auth/
+
+# Local config
+.env
+server.env
+
+# Build output / deps
+frontend/dist/
+node_modules/
+*.log
+.DS_Store
+node_modules
+.claude/
+.agents/
+.superpowers/
+
+# Nix build result symlinks
+result
+result-*
+
+# CI reports (test:* jobs write these next to the suites)
+junit.xml
+coverage/
+frontend/bundle-size.json
+
+# Local planning notes
+docs/superpowers/plans/
+
+# Local build/acceptance evidence and private deployment history
+/artifacts/
+/OPERATIONS.md
+/DEPLOYMENT_REVIEW.md
+/plugin.zip
+
+# Deployment secrets, signing identities and private source recovery bundles
+.env.*
+!.env.example
+agent.env
+*.local.env
+*.pem
+*.p12
+*.p8
+*.mobileprovision
+*.bundle
+backups/
+**/xcuserdata/
+**/*.xcuserstate

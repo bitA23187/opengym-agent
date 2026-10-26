@@ -1,0 +1,42 @@
+/* Hallmark · existing app tokens · functional hypnogram · P4 H4 E4 S5 R5 V4 */
+.sleep-stages { --sleep-awake: #ff9500; --sleep-rem: #32ade6; --sleep-core: #007aff; --sleep-deep: #5856d6; --sleep-unspecified: #af52de; }
+.sleep-stages svg { display: block; width: 100%; height: auto; margin-block: 20px; overflow: visible; }
+.sleep-stages svg text { fill: currentColor; font-size: 12px; }
+.sleep-grid { stroke: var(--label-2); opacity: .5; stroke-width: .5; stroke-dasharray: 2 3; }
+.sleep-connector { fill: none; stroke: var(--label-2); opacity: .4; stroke-width: 1.5; }
+.sleep-stage-bar { cursor: pointer; }
+.sleep-stage-bar:focus { outline: none; stroke: var(--label); stroke-width: 1.5; }
+.sleep-selection { min-height: 2.5em; }
+.sleep-credit { margin-bottom: 0; font-size: 11px; }
+.sleep-awake { fill: var(--sleep-awake); background: var(--sleep-awake); }
+.sleep-asleepREM { fill: var(--sleep-rem); background: var(--sleep-rem); }
+.sleep-asleepCore { fill: var(--sleep-core); background: var(--sleep-core); }
+.sleep-asleepDeep { fill: var(--sleep-deep); background: var(--sleep-deep); }
+.sleep-asleepUnspecified { fill: var(--sleep-unspecified); background: var(--sleep-unspecified); }
+.sleep-stage-totals { margin: 12px 0; }
+.sleep-stage-totals > div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--sep); }
+.sleep-stage-totals dt { display: flex; align-items: center; gap: 8px; }
+.sleep-stage-totals dd { margin: 0; font-variant-numeric: tabular-nums; }
+.sleep-stage-totals i { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.sleep-stages select { max-width: 100%; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--sep); border-radius: 6px; padding: 5px; }
+.sleep-stages .health-heading { flex-wrap: wrap; gap: 8px; }
+/* Apple Health multi-day layout: calendar columns, shared clock axis, primary daily amount. */
+.sleep-overview .sleep-daily-value { margin: 4px 0 20px; }
+.sleep-period-summary { display: flex; justify-content: space-between; align-items: end; gap: 16px; padding-block: 12px; border-top: 1px solid var(--sep); }
+.sleep-period-summary > div { display: grid; gap: 5px; }
+.sleep-period-summary strong { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sleep-period-summary p { margin: 0; text-align: right; }
+.sleep-mode { margin-top: 12px; }
+.sleep-column-hit { fill: transparent; }
+.sleep-column-selected { fill: var(--label-4); }
+.sleep-duration-column { fill: var(--sleep-rem); }
+.sleep-multiday-chart g[data-sleep-day] { cursor: pointer; outline: none; }
+.sleep-multiday-chart g[data-sleep-day]:focus-visible > rect:first-of-type { stroke: var(--label); stroke-width: 1; }
+.sleep-multiday-chart g[data-sleep-day]:hover > rect:first-of-type { fill: var(--label-4); }
+.sleep-multiday-chart g[data-sleep-day]:active { opacity: .75; }
+.sleep-overview .sleep-missing { fill: var(--label-3); }
+.sleep-overview-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; }
+.sleep-overview-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.sleep-overview-legend i { width: 8px; height: 8px; border-radius: 50%; }
+.sleep-day-detail { min-height: 2.5em; font-variant-numeric: tabular-nums; }
+@media (max-width: 374px) { .sleep-period-summary { align-items: start; flex-direction: column; gap: 8px; } .sleep-period-summary p { text-align: left; } }
