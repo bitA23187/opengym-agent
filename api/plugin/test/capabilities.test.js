@@ -63,16 +63,19 @@ test('moving a workout preserves ID and duration, demands new exact start time, 
   h.save(h.training.preview(user,grant,{date:'2026-10-14',workout_id:id,workout_patch:{date:'2026-10-13',started_at:'2026-10-13T18:30:00+08:00'}}));
   const w=h.read().workouts[0];assert.equal(w.id,id);assert.equal(w.d,'2026-10-13');assert.equal(w.end-w.start,1800000);
 });
-test('body metrics preserve unspecified measurements, convert inches, clear explicitly, sync changes and reject account/unit/grant conflicts',()=>{
-  const h=harness(),s=h.read();s.measurements=[{d:'2026-10-14',waist:85,chest:100,other:[{id:'custom',name:'custom',value:22}],t:1}];s.bodyweight=[{d:'2026-10-14',w:80,t:1}];h.set(s);
-  let p=h.body.preview(user,grant,{unit:'kg',timezone,circumference_unit:'in',entries:[{date:'2026-10-14',weight:79,measurements:{waist:32,bodyFat:18}}],target_weight:75});assert.equal(h.read().bodyweight[0].w,80);
-  assert.throws(()=>h.body.save({id:'bob'},grant,p.draft_id,true,p.confirmation_summary),/different authorization/);assert.throws(()=>h.body.save(user,'other-grant',p.draft_id,true,p.confirmation_summary),/different authorization/);
-  h.saveBody(p);assert.equal(h.read().measurements[0].waist,81.3);assert.equal(h.read().measurements[0].chest,100);assert.equal(h.read().measurements[0].bodyFat,18);assert.equal(h.read().measurements[0].other[0].value,22);assert.equal(h.read().targetW,75);
-  assert.equal(mergeStates(s,h.read()).bodyweight[0].w,79);assert.equal(h.saveBody(p).already_saved,true);
-  const report=h.body.read(user,{from:'2026-10-01',to:'2026-10-14'});assert.equal(report.weekly_weights[0].avg,79);assert.equal(report.circumference_unit,'cm');
-  p=h.body.preview(user,grant,{unit:'kg',timezone,entries:[{date:'2026-10-14',weight:null,measurements:{waist:null}}]});h.saveBody(p);assert.equal(h.read().bodyweight.length,0);assert.equal(h.read().measurements[0].chest,100);assert.equal(h.read().measurements[0].waist,null);
-  assert.equal(mergeStates(s,h.read()).bodyweight.length,0);assert.throws(()=>h.body.preview(user,grant,{unit:'lb',timezone,target_weight:100}),/account weight unit/);
-  p=h.body.preview(user,grant,{unit:'kg',timezone,target_weight:70});const changed=h.read();changed._rev++;h.set(changed);assert.throws(()=>h.saveBody(p),/changed since preview/);
+test('Plugin measurements preserve all timed weigh-ins and goals, reject weight inputs, and keep authorization and revision checks',()=>{
+  const h=harness(),s=h.read();s.measurements=[{d:'2026-10-14',waist:85,chest:100,other:[{id:'custom',name:'custom',value:22}],t:1}];
+  s.bodyweight=[{d:'2026-10-14',w:80,t:1,ins:[{id:'am',at:'08:00',w:80,t:1},{id:'pm',at:'20:00',w:81,t:1}],gone:{old:1}}];s.targetW=75;h.set(s);
+  const input={unit:'kg',timezone,circumference_unit:'in',entries:[{date:'2026-10-14',measurements:{waist:32,bodyFat:18}}]};
+  for(const extra of [{target_weight:70},{entries:[{date:'2026-10-14',weight:79}]}])assert.throws(()=>h.body.preview(user,grant,{...input,...extra}));
+  let p=h.body.preview(user,grant,input);
+  assert.throws(()=>h.body.save({id:'bob'},grant,p.draft_id,true,p.confirmation_summary),/different authorization/);
+  assert.throws(()=>h.body.save(user,'other',p.draft_id,true,p.confirmation_summary),/different authorization/);
+  h.saveBody(p);assert.equal(h.read().measurements[0].waist,81.3);assert.equal(h.read().measurements[0].chest,100);assert.equal(h.read().measurements[0].other[0].value,22);
+  assert.deepEqual(h.read().bodyweight,s.bodyweight);assert.equal(h.read().targetW,75);assert.equal(h.saveBody(p).already_saved,true);
+  const report=h.body.read(user,{from:'2026-10-01',to:'2026-10-14'});for(const key of ['bodyweight','weekly_weights','target_weight'])assert.equal(Object.hasOwn(report,key),false);
+  p=h.body.preview(user,grant,{unit:'kg',timezone,entries:[{date:'2026-10-14',measurements:{waist:null}}]});h.saveBody(p);assert.equal(h.read().measurements[0].waist,null);assert.deepEqual(h.read().bodyweight,s.bodyweight);
+  p=h.body.preview(user,grant,input);const changed=h.read();changed._rev++;h.set(changed);assert.throws(()=>h.saveBody(p),/changed since preview/);
 });
 test('advanced progression fields are represented exactly in preview and app storage, including each-side ranges and null clearing',()=>{
   const h=harness();let p=h.plans.previewEdit(user,grant,{routine_id:'a',operations:[{type:'update_exercise',index:0,fields:{progression:'double',reps:12,reps_min:8,per_side:true,increment:1,deload_factor:0.85,warmup_sets:2}}]});

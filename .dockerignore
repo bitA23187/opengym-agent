@@ -22,3 +22,10 @@ backups
 **/*.mobileprovision
 **/*.bundle
 **/xcuserdata
+
+catalogue/media/
+**/*.shortcut
+**/*.apk
+**/*.ipa
+**/*.keystore
+**/*.jks

@@ -1,5 +1,45 @@
 ## 2026-10-26 移除整天完成状态（v0.7.2）
 
+## All-account direct saves, 2026-10-28 (v0.8.2)
+
+This supersedes the account-only policy below. With PLUGIN_DIRECT_SAVE=1, all
+accounts use direct saves for clear user-requested training arrangements,
+training records, actual nutrition/goals and food-library upserts/restores.
+Explicit requests to remember technique/grip notes also authorize standing
+exercise note updates, including in the same batch as a workout. An incidental
+symptom stays in the current workout rather than automatically becoming lasting
+context. Context promotion, destructive removals and undo keep confirmation.
+
+The exact preview returns authorization.source=deployment_policy and
+requires_user_confirmation=false for eligible changes. Unresolved review_questions
+block saves; ordinary training drafts now persist those questions as well as
+returning them. Ambiguity/errors/outliers require focused clarification. This
+policy grants no new scopes, access to other accounts or permission to invent data.
+Set PLUGIN_DIRECT_SAVE=0 to fall back to the individual account allowlists.
+
+
+## Direct-save rules, 2026-10-28 (v0.8.1)
+
+This section supersedes older blanket preview/confirm instructions below.
+For accounts explicitly listed in PLUGIN_NUTRITION_AUTO_SAVE_USER_IDS, clear
+requested food-library upserts/restores now share direct-save authorization with
+actual meals and requested goals, including mixed batches.
+PLUGIN_PLAN_AUTO_SAVE_USER_IDS separately authorizes clear requested templates,
+exercise changes and schedules. Training records keep their existing preference.
+When the exact preview returns authorization.requires_user_confirmation=false,
+validate internally and save in the same turn without another confirmation reply;
+report success only after the matching save succeeds. Advice alone is not a save request.
+
+Clarify ambiguity, suspected mistakes, outliers, unit/side or raw/cooked conflicts
+first. Plans now accept review_questions; nonempty questions block saving on the
+server until clarified and previewed again. Empty questions do not prove clarity.
+Other accounts retain confirmation, as do nutrition deletion/food archive/delete,
+training deletion/undo, plan undo and long-term profile/context changes. Exact
+summaries, scopes, account/grant binding, revision checks, idempotency and host
+approval remain in force. Cached ChatGPT tool descriptions need a refresh and
+fresh-chat acceptance; server tests do not prove host behavior.
+
+
 本节取代下文历史完成标记规则。首页、详情、图表、日均和周均不再区分完整/尚未记完，也不再依赖旧 nutritionDays。均值按相应营养项已有数值的日期计算，包含真实零值；缺失日期和未知值不填零。某餐营养值未知时，日合计仅包含已知数值并明确说明；全天合计和分餐冲突仍拒绝累计。
 
 插件不再暴露 completed_dates 或日级 complete 状态，不再要求 GPT 标记一天完成。为兼容缓存旧工具签名的客户端，传入的旧 completed_dates 被忽略且不保存。历史 nutritionDays 元数据只保留兼容存储，界面和统计完全不读取它。无需改写真实饮食记录。明确饮食/目标直接保存的账号偏好、异常追问和目标修改功能保留。

@@ -13,6 +13,7 @@
 // or no never makes it disappear. Turning the Coach off is the admin's decision, not a control
 // on this screen.
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { cachedRead, invalidateRead, refreshRead } from '../lib/read-cache.js'
 import { useNavigate } from 'react-router-dom'
 import { closeThenNav } from '../lib/nav.js'
 import { useStore } from '../store/useStore.js'
@@ -150,7 +151,7 @@ export default function CoachChat() {
   </div>)
 
   const showHistory = () => openSheet(close => <HistorySheet S={S} close={close} openSheet={openSheet} />)
-  const showCohort = () => openSheet(() => <CohortSheet S={S} update={update} toast={toast} />)
+  const showCohort = () => openSheet(() => <CohortSheet unit={S.unit} update={update} toast={toast} />)
 
   const idle = !job && !pending
   const menu = () => openSheet(close => <div className="chat-menu">
@@ -686,15 +687,38 @@ function HistorySheet({ S, close, openSheet }) {
  * sharing, nothing that identifies anyone. The admin turns it on for the instance; each person
  * turns it on for themselves; a person who does not share sees nothing either.
  */
-function CohortSheet({ S, update, toast }) {
-  const [d, setD] = useState(null)
+const cohortPath = '/api/coach/cohort'
+
+function CohortSheet({ unit, update, toast }) {
+  const user = useStore(s => s.user)
+  return <CohortContent key={user?.id || 'guest'} user={user} unit={unit} update={update} toast={toast} />
+}
+
+function CohortContent({ user, unit, update, toast }) {
+  const [d, setD] = useState(() => cachedRead(user, cohortPath))
   const [busy, setBusy] = useState(false)
-  const load = () => cohortStats().then(setD).catch(e => { toast(e.message || t('Could not load')); setD({ ok: false }) })
-  useEffect(() => { load() }, [])
+  const version = useRef(0)
+  const load = async () => {
+    const current = ++version.current
+    try {
+      const result = await (user ? refreshRead(user, cohortPath, cohortStats) : cohortStats())
+      if (current === version.current) setD(result)
+    } catch (e) {
+      if (current !== version.current) return
+      toast(e.message || t('Could not load'))
+      setD(previous => previous ?? { ok: false })
+    }
+  }
+  useEffect(() => { load(); return () => { ++version.current } }, [user])
   const share = async v => {
     setBusy(true)
-    try { await setCohortShare(v); update(s => { (s.coach = s.coach || emptyCoach()).share = v }); await load() }
-    catch (e) { toast(e.message || t('Could not save')) }
+    try {
+      await setCohortShare(v)
+      invalidateRead(user, cohortPath)
+      setD({ sharing: v, ok: false })
+      update(s => { (s.coach = s.coach || emptyCoach()).share = v })
+      await load()
+    } catch (e) { toast(e.message || t('Could not save')) }
     setBusy(false)
   }
   const sharing = !!d?.sharing
@@ -717,7 +741,7 @@ function CohortSheet({ S, update, toast }) {
         <Tile v={d.rankPct != null ? d.rankPct + '%' : '–'} l={t('Your strength rank')} />
       </div>
       {!!d.exercises.length && <div className="ins-block">
-        <div className="ins-h"><span>{t('Estimated 1RM, you vs. median')}</span><span className="dim">{S.unit}</span></div>
+        <div className="ins-h"><span>{t('Estimated 1RM, you vs. median')}</span><span className="dim">{unit}</span></div>
         {d.exercises.map(x => {
           const max = Math.max(x.median, x.you || 0) || 1
           return <div key={x.id} className="cmp">

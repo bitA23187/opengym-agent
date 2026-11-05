@@ -6,12 +6,37 @@ import path from 'node:path'
 import http from 'node:http'
 import { createHeartRate } from '../heart-rate.js'
 import { withAppleWorkoutTime } from '../heart-rate-time.js'
+import { createWatchCredentials } from '../watch-credentials.js'
 import { parseHeartRate, matchHeartRate, workoutKey, appleWorkoutWindow } from '../heart-rate-data.js'
 
 const start = Date.parse('2026-10-22T19:27:48+08:00')
 const end = Date.parse('2026-10-22T21:55:48+08:00')
 const workout = { id: 'w1', d: '2026-10-22', start, end }
 const body = { dates: '2026-10-22T00:29:01+08:00\n2026-10-22T19:29:01+08:00\n2026-10-22T21:55:48+08:00', values: '70\n110\n120' }
+
+test('paired Watch uploads native workout heart rate, deduplicates with iPhone and remains account scoped', async t => {
+  const h = await harness(t)
+  const watches = createWatchCredentials({ dataDir: h.dir, getUser: id => h.users.find(u => u.id === id) })
+  const watch = watches.issue(h.users[0], 'Test Watch')
+  const pending = await h.request('pending', { token: watch.token, method: 'POST', body: { expected_owner: 'alice' } })
+  assert.equal(pending.status, 200)
+  assert.equal(pending.data.owner, 'alice')
+  assert.deepEqual(pending.data.workouts, [{ date: '2026-10-22', workout_id: 'w1' }])
+  assert.equal((await h.request('pending', { token: watch.token, method: 'POST', body: { expected_owner: 'bob' } })).status, 403)
+  const input = { samples: [{ at: '2026-10-22T19:29:01+08:00', bpm: 110 }], workout_id: 'w1',
+    apple_workout_id: ['watch-native-test'], started_at: ['2026-10-22T19:27:48+08:00'], ended_at: ['2026-10-22T21:55:48+08:00'],
+    client: 'opengym-healthkit', batch: true, sync_workout_time: true }
+  assert.equal((await h.request('import', { token: watch.token, method: 'POST', body: input })).data.storedWorkouts, 1)
+  const phoneToken = await h.connect('alice')
+  assert.equal((await h.request('import', { token: phoneToken, method: 'POST', body: input })).data.skipped, 'already_imported')
+  const record = (await h.request('workout?workout_id=w1', { user: 'alice' })).data
+  assert.equal(record.source, 'apple-health-native')
+  assert.equal(record.samples.length, 1)
+  assert.equal((await h.request('workout?workout_id=w1', { user: 'bob' })).data.summary.count, 0)
+  assert.equal((await h.request('export?workout_id=w1', { token: watch.token })).status, 401)
+  watches.revoke('alice', watch.device_id)
+  assert.equal((await h.request('import', { token: watch.token, method: 'POST', body: input })).status, 401)
+})
 test('preserves instants, validates pairs, and never guesses overlapping workout matches', () => {
   const samples = parseHeartRate(body)
   assert.equal(samples.length, 3)
@@ -221,4 +246,64 @@ test('native client verifies upload credential ownership before reading HealthKi
   assert.equal(record.metrics.source, 'apple-health-native')
   assert.equal(record.samples.length, 1)
   assert.equal((await h.request('import', { method: 'POST', token, body: input })).data.skipped, 'already_imported')
+})
+
+test('automatic sync keeps a one-minute morning walk out of the evening workout', async t => {
+  const h = await harness(t), token = await h.connect('alice')
+  const state = h.states.get('alice')
+  const input = {
+    batch: true, sync_workout_time: true, workout_id: 'w1',
+    apple_workout_id: ['morning', 'evening'],
+    started_at: ['2026-10-22T08:00:00+08:00', '2026-10-22T19:27:48+08:00'],
+    ended_at: ['2026-10-22T08:01:00+08:00', '2026-10-22T21:55:48+08:00'],
+    samples: [{ at: '2026-10-22T08:00:30+08:00', bpm: 90 }, { at: '2026-10-22T19:29:01+08:00', bpm: 110 }],
+  }
+  const send = () => h.request('import', { token, method: 'POST', body: input })
+  state.workouts = [{ id: 'w1', d: '2026-10-22' }]
+  assert.equal((await send()).data.skipped, 'ambiguous_apple_workout')
+  state.workouts = [{ ...workout, start: Date.parse('2026-10-22T07:59:00+08:00') }]
+  assert.equal((await send()).data.skipped, 'ambiguous_apple_workout')
+  state.workouts = [{ ...workout }]
+  assert.equal((await send()).data.added, 1)
+  const record = (await h.request('workout?workout_id=w1', { user: 'alice' })).data
+  assert.equal(record.window.appleWorkoutId, 'evening')
+  assert.equal(record.summary.sampleMean, 110)
+  assert.equal(state.workouts[0].start, start)
+})
+
+test('uses a recent plugin save only when one Apple workout has just ended', async t => {
+  const h = await harness(t), token = await h.connect('alice')
+  const state = h.states.get('alice')
+  const savedAt = Date.parse('2026-10-22T20:05:00+08:00')
+  state.workouts = [{ id: 'w1', d: '2026-10-22', source: 'agent', pluginSavedAt: savedAt }]
+  const input = {
+    batch: true, sync_workout_time: true, workout_id: 'w1',
+    apple_workout_id: ['walk', 'lift'],
+    started_at: ['2026-10-22T08:00:00+08:00', '2026-10-22T19:00:00+08:00'],
+    ended_at: ['2026-10-22T08:01:00+08:00', '2026-10-22T20:02:00+08:00'],
+    samples: [{ at: '2026-10-22T08:00:30+08:00', bpm: 90 }, { at: '2026-10-22T19:29:01+08:00', bpm: 110 }],
+  }
+  const send = body => h.request('import', { token, method: 'POST', body })
+  const check = (body, code) => assert.throws(() => appleWorkoutWindow(body, state.workouts), { code })
+  check({ ...input, started_at: ['2026-10-22T19:45:00+08:00', input.started_at[1]],
+    ended_at: ['2026-10-22T19:55:00+08:00', input.ended_at[1]] }, 'ambiguous_apple_workout')
+  check({ ...input, started_at: ['2026-10-22T19:45:00+08:00', input.started_at[1]],
+    ended_at: ['2026-10-22T20:06:00+08:00', input.ended_at[1]] }, 'ambiguous_apple_workout')
+  state.workouts[0].pluginSavedAt = Date.parse(input.ended_at[1]) + 3600000
+  assert.equal(appleWorkoutWindow(input, state.workouts).appleWorkoutId, 'lift')
+  state.workouts[0].pluginSavedAt++
+  check(input, 'no_matching_apple_workout')
+  check({ ...input, apple_workout_id: ['lift'], started_at: [input.started_at[1]], ended_at: [input.ended_at[1]] }, 'no_matching_apple_workout')
+  state.workouts[0].start = Date.parse(input.started_at[0])
+  state.workouts[0].end = Date.parse(input.ended_at[0])
+  assert.equal(appleWorkoutWindow(input, state.workouts).appleWorkoutId, 'walk')
+  delete state.workouts[0].start
+  delete state.workouts[0].end
+  state.workouts[0].pluginSavedAt = savedAt
+  assert.equal((await send(input)).data.added, 1)
+  const record = (await h.request('workout?workout_id=w1', { user: 'alice' })).data
+  assert.equal(record.window.appleWorkoutId, 'lift')
+  const saved = h.states.get('alice').workouts[0]
+  assert.equal(saved.pluginSavedAt, savedAt)
+  assert.equal(saved.end, Date.parse(input.ended_at[1]))
 })

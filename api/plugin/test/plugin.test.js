@@ -22,7 +22,7 @@ test('OAuth + MCP end-to-end: scopes, consent, PKCE, append, conflict, revocatio
  let state={unit:'kg',routines:[{id:'old',name:'Old',ex:[{id:'0293',sets:3,reps:10,weight:12,restSec:90}]}],week:{1:'old'},workouts:[{id:'history',d:'2026-10-14',name:'Earlier',entries:[]}],bodyweight:[{d:'2026-10-14',w:80}],exWeights:{'0293':{w:12}},unknown:{preserve:true},_rev:7,_wid:'oldwid'};
  const before=structuredClone(state);
  const audits=[];
- const plugin=createPlugin({defaultTimezone:'Asia/Taipei',auditSink:e=>audits.push(e),origin:issuer,dataDir:dir,userById:id=>id===user.id?user:undefined,
+ const plugin=createPlugin({requestLimit:1000,defaultTimezone:'Asia/Taipei',auditSink:e=>audits.push(e),origin:issuer,dataDir:dir,userById:id=>id===user.id?user:undefined,
   readSession:req=>req.headers.cookie==='fixture=valid'?user:null,read:()=>structuredClone(state),
   append:(u,d)=>{state=appendPlan(state,d);return{saved:true,revision:state._rev};},
   appendEdit:(u,d)=>{state=appendPlanEdit(state,d);return{saved:true,revision:state._rev};},
@@ -74,13 +74,18 @@ test('OAuth + MCP end-to-end: scopes, consent, PKCE, append, conflict, revocatio
  let id=0;
  async function rpc(method,params,token) {
    const r=await req(prefix+'/mcp',{method:'POST',headers:{'content-type':'application/json',accept:'application/json, text/event-stream',...(token?{authorization:'Bearer '+token}:{})},body:JSON.stringify({jsonrpc:'2.0',id:++id,method,params})});
-   return {status:r.status,value:await r.json()};
+   return {status:r.status,request_id:r.headers.get('x-request-id'),value:await r.json()};
  }
- const list=await rpc('tools/list',{});assert.equal(list.status,200);assert.equal(list.value.result.tools.length,27);
+ const list=await rpc('tools/list',{});assert.equal(list.status,200);assert.equal(list.value.result.tools.length,29);
+ for(const name of ['preview_plan','preview_plan_edit'])assert.ok(list.value.result.tools.find(t=>t.name===name).inputSchema.properties.review_questions);
+ for(const name of ['save_plan','save_plan_edit'])assert.match(list.value.result.tools.find(t=>t.name===name).inputSchema.properties.confirmed.description,/authorization.requires_user_confirmation=false/);
+ assert.match(list.value.result.tools.find(t=>t.name==='preview_nutrition_update').description,/mixed batches/);
  const trainingDescriptor=list.value.result.tools.find(t=>t.name==='preview_training_update');
  assert.ok(trainingDescriptor.inputSchema.properties.timezone);
  assert.ok(!trainingDescriptor.inputSchema.required.includes('timezone'),'Older cached clients must not need a new field');
- assert.ok(trainingDescriptor.inputSchema.properties.workout.properties.exercises.items.properties.sets.items.properties.drops);
+ const deref=v=>v?.$ref?v.$ref.slice(2).split('/').reduce((o,k)=>o[k],trainingDescriptor.inputSchema):v;
+ const workoutSchema=deref(trainingDescriptor.inputSchema.properties.workout),exerciseSchema=deref(workoutSchema.properties.exercises.items);
+ assert.ok(deref(exerciseSchema.properties.sets.items).properties.drops);
  const saveDescriptor=list.value.result.tools.find(x=>x.name==='save_plan');assert.equal(saveDescriptor.annotations.readOnlyHint,false);assert.equal(saveDescriptor.annotations.destructiveHint,false);assert.ok(saveDescriptor.inputSchema.required.includes('confirmation_summary'));
  assert.equal(list.value.result.tools.find(x=>x.name==='preview_plan').annotations.idempotentHint,false);
  const unauth=await rpc('tools/call',{name:'get_current_plan',arguments:{}});assert.equal(unauth.value.result.isError,true);assert.ok(unauth.value.result._meta['mcp/www_authenticate']);
@@ -94,13 +99,15 @@ test('OAuth + MCP end-to-end: scopes, consent, PKCE, append, conflict, revocatio
  assert.ok(confirmation_summary.includes('dumbbell bent over row'));assert.ok(confirmation_summary.includes('12 kg'));
 assert.equal(state.routines.length,1);
  const unconfirmed=await rpc('tools/call',{name:'save_plan',arguments:{draft_id:draft,confirmation_summary,confirmed:false}},tokens.access_token);assert.ok(unconfirmed.value.result.isError);
+ const validationError=JSON.parse(unconfirmed.value.result.content[0].text);
+ assert.equal(validationError.error_code,'invalid_arguments');assert.equal(validationError.stage,'tool_validation');assert.equal(validationError.request_id,unconfirmed.request_id);assert.ok(validationError.schema_version);assert.equal(validationError.retryable,false);
  const mismatch=await rpc('tools/call',{name:'save_plan',arguments:{draft_id:draft,confirmed:true,confirmation_summary:'Different changes'}},tokens.access_token);
  assert.equal(mismatch.value.result.isError,true);assert.equal(state.routines.length,1);
  const saved=await rpc('tools/call',{name:'save_plan',arguments:{draft_id:draft,confirmation_summary,confirmed:true}},tokens.access_token);assert.ok(!saved.value.result.isError,JSON.stringify(saved.value));assert.equal(state.routines.length,2);assert.equal(state._rev,8);
  for(const k of ['workouts','bodyweight','exWeights','week','unknown'])assert.deepEqual(state[k],before[k]);assert.deepEqual(state.routines[0],before.routines[0]);
  const repeated=await rpc('tools/call',{name:'save_plan',arguments:{draft_id:draft,confirmation_summary,confirmed:true}},tokens.access_token);assert.equal(JSON.parse(repeated.value.result.content[0].text).already_saved,true);assert.equal(state.routines.length,2);
  const p2=await rpc('tools/call',{name:'preview_plan',arguments:args},tokens.access_token);const d2=JSON.parse(p2.value.result.content[0].text).draft_id;state._rev++;
- const conflict=await rpc('tools/call',{name:'save_plan',arguments:{draft_id:d2,confirmation_summary:JSON.parse(p2.value.result.content[0].text).confirmation_summary,confirmed:true}},tokens.access_token);assert.equal(conflict.value.result.isError,true);assert.equal(state.routines.length,2);
+ const conflict=await rpc('tools/call',{name:'save_plan',arguments:{draft_id:d2,confirmation_summary:JSON.parse(p2.value.result.content[0].text).confirmation_summary,confirmed:true}},tokens.access_token);assert.equal(conflict.value.result.isError,true);assert.equal(state.routines.length,2);assert.equal(JSON.parse(conflict.value.result.content[0].text).error_code,'revision_conflict');
  const edits={routine_id:'old',operations:[
   {type:'rename_routine',name:'Updated Day'},
   {type:'update_exercise',index:0,fields:{weight:15,note:'Keep elbow tucked'}},
@@ -174,6 +181,37 @@ assert.equal(state.routines.length,1);
  const noTraining=await separateClient('plan:read plan:write');
  const trainingDenied=await rpc('tools/call',{name:'preview_training_update',arguments:{timezone:'Asia/Taipei',date:'2026-10-15',day_note:'Not authorized yet.'}},noTraining.access_token);
  assert.equal(trainingDenied.value.result.isError,true);
+ // Run the newly exposed fields through actual tools/list -> HTTP tool calls -> shared app state.
+ const value=r=>{assert.ok(!r.value.result.isError,JSON.stringify(r.value));return JSON.parse(r.value.result.content[0].text);};
+ const planDescriptor=list.value.result.tools.find(t=>t.name==='preview_plan_edit');assert.ok(planDescriptor.inputSchema.properties.schedule.properties.timezone);
+ const sessionDescriptor=list.value.result.tools.find(t=>t.name==='get_training_summary');assert.ok(sessionDescriptor.inputSchema.properties.detail_level);
+ const rotationDraft=value(await rpc('tools/call',{name:'preview_plan_edit',arguments:{schedule:{mode:'rotation',starts_on:'2026-10-15',timezone:'Asia/Taipei',routine_ids:['old']},operations:[{type:'set_date',date:'2026-10-16',routine_id:'rest'}]}},tokens.access_token));
+ value(await rpc('tools/call',{name:'save_plan_edit',arguments:{draft_id:rotationDraft.draft_id,confirmed:true,confirmation_summary:rotationDraft.confirmation_summary}},tokens.access_token));
+ assert.equal(state.queue.rotationId,state.rotation.id);assert.equal(state.dayPlan['2026-10-16'],'rest');
+ const promoted=value(await rpc('tools/call',{name:'preview_training_update',arguments:{date:'2026-10-15',timezone:'Asia/Taipei',context_notes:[{text:'User reports elbow discomfort',kind:'limitation',source_note_ids:['day:2026-10-15'],review_on:'2026-11-01'}]}},tokens.access_token));
+ assert.equal(promoted.authorization.requires_user_confirmation,true);
+ value(await rpc('tools/call',{name:'save_training_update',arguments:{draft_id:promoted.draft_id,confirmed:true,confirmation_summary:promoted.confirmation_summary}},tokens.access_token));
+ assert.equal(value(await rpc('tools/call',{name:'get_current_plan',arguments:{}},tokens.access_token)).training_context.important_notes[0].source_note_ids[0],'day:2026-10-15');
+ const restpause=value(await rpc('tools/call',{name:'preview_training_update',arguments:{date:'2026-10-15',timezone:'Asia/Taipei',workout:{exercises:[{exercise_id:'0293',mode:'reps',sets:[{weight:12,reps:13,type:'restpause',clusters:[{reps:10,rest_seconds:0},{reps:3,rest_seconds:15}]}]}]}}},tokens.access_token));
+ value(await rpc('tools/call',{name:'save_training_update',arguments:{draft_id:restpause.draft_id,confirmed:true,confirmation_summary:restpause.confirmation_summary}},tokens.access_token));
+ const written=state.workouts.find(w=>w.entries?.[0]?.sets[0]?.type==='restpause');assert.ok(written);
+ assert.equal(value(await rpc('tools/call',{name:'get_training_workout',arguments:{workout_id:written.id}},tokens.access_token)).workout.entries[0].sets[0].clusters[1].r,3);
+ const versions=value(await rpc('tools/call',{name:'get_training_versions',arguments:{}},tokens.access_token)).versions;
+ assert.ok(versions.every(v=>v.summary.length<=181));
+ assert.ok(value(await rpc('tools/call',{name:'get_training_versions',arguments:{detail_level:'full',version_id:versions[0].id}},tokens.access_token)).versions[0].summary.length>181);
+ const logStart=value(await rpc('tools/call',{name:'preview_training_update',arguments:{date:'2026-10-15',timezone:'Asia/Taipei',session_update:{session_id:'http-log',expected_version:0,idempotency_key:'start',operations:[{type:'start',name:'HTTP incremental log'},{type:'append_exercise',entry_id:'row1',exercise:{exercise_id:'0293',mode:'reps'}},{type:'append_set',entry_id:'row1',set_id:'set1',set:{weight:12,reps:10,weight_source:'per_dumbbell'}}]}}},tokens.access_token));
+ value(await rpc('tools/call',{name:'save_training_update',arguments:{draft_id:logStart.draft_id,confirmed:true,confirmation_summary:logStart.confirmation_summary}},tokens.access_token));
+ assert.equal(value(await rpc('tools/call',{name:'get_training_log',arguments:{session_id:'http-log'}},tokens.access_token)).session.workout.entries[0].sets[0].set_id,'set1');
+ const logFinish=value(await rpc('tools/call',{name:'preview_training_update',arguments:{date:'2026-10-15',timezone:'Asia/Taipei',session_update:{session_id:'http-log',expected_version:1,idempotency_key:'finish',operations:[{type:'finish'}]}}},tokens.access_token));
+ value(await rpc('tools/call',{name:'save_training_update',arguments:{draft_id:logFinish.draft_id,confirmed:true,confirmation_summary:logFinish.confirmation_summary}},tokens.access_token));
+ assert.equal(value(await rpc('tools/call',{name:'get_training_workout',arguments:{workout_id:'log_http-log'}},tokens.access_token)).workout.entries[0].sets[0].weight_source,'per_dumbbell');
+ const customPreview=value(await rpc('tools/call',{name:'preview_custom_exercise',arguments:{operation:'create',fields:{name:'HTTP custom activity',body_part:'cardio',equipment:'rope',activity_type:'custom',field_definitions:[{key:'trips',label:'Trips',type:'number',min:0,aggregation:'sum'}]}}},tokens.access_token));
+ value(await rpc('tools/call',{name:'save_custom_exercise',arguments:{draft_id:customPreview.draft_id,confirmed:true,confirmation_summary:customPreview.confirmation_summary}},tokens.access_token));
+ assert.equal(value(await rpc('tools/call',{name:'get_exercise_details',arguments:{exercise_id:customPreview.exercise_id}},tokens.access_token)).field_definitions[0].key,'trips');
+ const customLog=value(await rpc('tools/call',{name:'preview_training_update',arguments:{date:'2026-10-15',timezone:'Asia/Taipei',workout:{exercises:[{exercise_id:customPreview.exercise_id,mode:'custom',observations:[{record_id:'round1',values:{trips:2}}]}]}}},tokens.access_token));
+ const customSaved=value(await rpc('tools/call',{name:'save_training_update',arguments:{draft_id:customLog.draft_id,confirmed:true,confirmation_summary:customLog.confirmation_summary}},tokens.access_token));
+ assert.equal(value(await rpc('tools/call',{name:'get_training_workout',arguments:{workout_id:customSaved.workout_id}},tokens.access_token)).workout.entries[0].measurement_totals[0].value,2);
+ const authError=JSON.parse(trainingDenied.value.result.content[0].text);assert.equal(authError.error_code,'authorization_required');assert.equal(authError.stage,'authorization');
  assert.ok(audits.some(e=>e.tool==='save_plan'&&e.phase==='received'));
  assert.ok(audits.some(e=>e.tool==='save_plan'&&e.phase==='tool_succeeded'&&e.saved));
  assert.ok(audits.some(e=>e.reason==='confirmation_mismatch'));
@@ -217,4 +255,18 @@ test('routine editing resolves legacy cardio modes and rejects incompatible fiel
  assert.ok(updated.confirmation_summary.includes('25'));
  assert.throws(()=>plans.previewEdit({id:'alice'},'grant-a',{routine_id:'run',operations:[{type:'update_exercise',index:0,fields:{reps:10}}]}),/Reps can only be edited/);
  assert.throws(()=>plans.previewEdit({id:'alice'},'grant-a',{routine_id:'run',operations:[{type:'set_weekday',weekday:1,routine_ids:['run','run']}]}),/unique/);
+});
+
+test('completed workout records the server save instant separately from the sync clock', t => {
+ const savedAt=Date.parse('2026-10-22T20:05:00+08:00');
+ t.mock.method(Date,'now',()=>savedAt);
+ const current={workouts:[],routines:[],_rev:1,_wid:'old'};
+ const workout={id:'training',d:'2026-10-22',name:'Evening',entries:[]};
+ const next=appendTrainingUpdate(current,{rev:1,wid:'old',workout,date:workout.d,timezone:'Asia/Taipei'});
+ assert.equal(next.workouts[0].pluginSavedAt,savedAt);
+ assert.equal(next.workouts[0].start,undefined);
+ assert.equal(next.workouts[0].end,undefined);
+ Date.now.mock.mockImplementation(()=>savedAt+3600000);
+ const edited=appendTrainingUpdate(next,{rev:next._rev,wid:next._wid,workoutId:workout.id,workout:{...workout,name:'Edited'},date:workout.d,timezone:'Asia/Taipei'});
+ assert.equal(edited.workouts[0].pluginSavedAt,savedAt);
 });

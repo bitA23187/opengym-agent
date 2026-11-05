@@ -12,7 +12,7 @@ export const normalizeExerciseName = s => String(s ?? '').normalize('NFKC').toLo
 const norm=normalizeExerciseName;
 export function exerciseView(e,custom=false) {
   return {exercise_id:e.id,name_zh:custom?e.n:names[e.id]||e.n,name_en:e.n,source:custom?'custom':'builtin',archived:custom&&e.archived===true,aliases:custom?e.aliases||[]:[],
-    equipment:e.eq,body_part:e.bp,target:e.tg,secondary_muscles:e.sm||[],supported_modes:e.bp==='cardio'?['cardio']:['reps','time']};
+    equipment:e.eq,body_part:e.bp,target:e.tg,secondary_muscles:e.sm||[],activity_type:e.activity_type||(e.bp==='cardio'?'cardio':'strength'),field_definitions:e.field_definitions||[],supported_modes:e.activity_type==='custom'?['custom']:e.activity_type==='climbing'?['climbing']:e.bp==='cardio'?['cardio']:['reps','time']};
 }
 const terms = /(哑铃|杠铃|绳索|壶铃|史密斯|单臂|单腿|俯身|上斜|下斜|坐姿|站姿|反手|正手|卧推|划船|硬拉|深蹲|下拉|弯举|推举|侧平举|臂屈伸|提踵)/g;
 const equipmentWords = { 哑铃: 'dumbbell', 杠铃: 'barbell', 绳索: 'cable', 壶铃: 'kettlebell', 史密斯: 'smith machine' };

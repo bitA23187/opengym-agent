@@ -501,3 +501,11 @@ export function printPlan(S, owner, opts) {
   if (doc.readyState === 'complete') setTimeout(run, 120)
   else ifr.onload = () => setTimeout(run, 120)
 }
+
+export function printedName(ex, fallback) {
+  if (!ex) return { name: fallback || t('Unknown exercise'), en: '', cls: '' }
+  const full = exerciseNameFor(ex)
+  const suffix = ` (${ex.n})`
+  const split = ex.n && full !== ex.n && full.endsWith(suffix)
+  return { name: split ? full.slice(0, -suffix.length) : full, en: split ? ex.n : '', cls: exerciseNameClass(ex) }
+}

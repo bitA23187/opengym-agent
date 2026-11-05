@@ -44,7 +44,7 @@ struct ContentView: View {
                 VStack(spacing: 5) {
                     Text("训练与恢复")
                         .font(.headline)
-                    Text("同步心率、睡眠与恢复")
+                    Text("同步训练心率、睡眠与恢复")
                         .font(.caption2).foregroundStyle(.secondary)
                 }.multilineTextAlignment(.center)
                 Button { showConnection = true } label: {
@@ -80,6 +80,7 @@ struct ContentView: View {
                 if let at = model.snapshot.state?.lastSuccess {
                     RelativeCheckTime(title: "上次同步", date: at)
                 }
+                Text("手动同步训练心率、睡眠、静息心率与 HRV。")
             }
             if let error = model.error ?? model.snapshot.state?.error {
                 Text(error).font(.caption2).foregroundStyle(.orange)
@@ -102,8 +103,8 @@ private struct RelativeCheckTime: View {
     let title: String
     let date: Date
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { _ in
-            Text("\(title) · \(date.formatted(.relative(presentation: .numeric, unitsStyle: .wide)))")
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            Text("\(title) · \(WatchRelativeTime.text(for: date, now: context.date))")
                 .font(.caption2).foregroundStyle(.secondary)
         }
     }
@@ -122,8 +123,7 @@ private struct DiagnosticsView: View {
                     Text("\(summary.count)\(summary.truncated ? "+" : "") 条可读样本")
                         .font(.footnote).monospacedDigit()
                     if let at = summary.latest {
-                        Text("最近一条 · \(at.formatted(.relative(presentation: .numeric, unitsStyle: .wide)))")
-                            .font(.caption2).foregroundStyle(.secondary)
+                        RelativeCheckTime(title: "最近一条", date: at)
                     }
                 }.accessibilityElement(children: .combine)
             }
@@ -136,6 +136,10 @@ private struct DiagnosticsView: View {
                 }.disabled(model.busy)
             } footer: {
                 Text("最近 7 天。没有样本时，请检查健康读取权限。")
+                Text("训练心率会匹配服务器上尚无心率的训练记录。空结果也可能代表未授予读取权限。")
+                if let earliest = model.snapshot.state?.earliest {
+                    Text("手表可读取 \(earliest.formatted(date: .abbreviated, time: .omitted)) 之后的数据；更早历史请用 iPhone 补传。")
+                }
             }
         }
         .navigationTitle("本机数据")
@@ -162,6 +166,14 @@ private struct SyncDetailsView: View {
                 }
             } else {
                 Text("同步完成后可在这里查看上传结果。")
+                    .font(.caption2).foregroundStyle(.secondary).listRowBackground(Color.clear)
+            }
+            if let stored = model.snapshot.state?.storedWorkouts {
+                Section("训练心率") {
+                    LabeledContent("已保存", value: "\(stored) 次")
+                    LabeledContent("本次跳过", value: "\(model.snapshot.state?.skippedWorkouts ?? 0) 次")
+                }
+                Text("仅补传缺失心率的训练，已有心率不会覆盖。同日多条 OpenGym 训练需手动关联；未读到 Apple 训练或心率时，下次手动同步会再检查。")
                     .font(.caption2).foregroundStyle(.secondary).listRowBackground(Color.clear)
             }
             if model.snapshot.pendingCount > 0 {

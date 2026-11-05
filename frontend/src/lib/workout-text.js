@@ -26,11 +26,11 @@ export function workoutText(w, { unit, nameOf, speedUnit }) {
   // tell them apart they would read as sets of their own.
   const lines = entry => {
     const sets = (entry.sets || []).filter(s => hasCompletedWork(s) && !isWarmupRow(s))
-    if (!sets.length) return null
+    if (!sets.length&&!entry.activity&&!entry.measurements) return null
     // Title case the way the screen shows it (exerciseNameClass): an English name gets it, a
     // translated one keeps its own casing, which German's capitalised nouns depend on.
     const name = nameOf(entry)
-    return [exerciseNameClass(EXIDX[entry.id]) ? capWords(name) : name, sets.map(s => setLabel(entry.id, s, entry.target, speedUnit)).join(', '), ...(entry.note ? [entry.note] : [])]
+    return [exerciseNameClass(EXIDX[entry.id]) ? capWords(name) : name, ...((entry.activity?.type==='climbing')?entry.activity.routes.map(r=>`${r.name||t('Route')} · ${r.grading_system||''} ${r.grade||'–'} · ${r.attempts} ${t('Attempts')} · ${t(r.completed?'Completed':'Not completed')}`):[]),...(entry.measurements?entry.measurements.observations.map(r=>entry.measurements.fields.map(f=>`${f.label}: ${r.values[f.key]??'–'}${f.unit?' '+f.unit:''}`).join(' · ')):[]),...(sets.length?[sets.map(s => setLabel(entry.id, s, entry.target, speedUnit)+(s.distance_km!=null?` · ${s.distance_km} km`:'')+(s.rep_segments?` · ${s.rep_segments.map(p=>`${p.portion} ${p.reps}`).join(' / ')}`:'')).join(', ')]:[]), ...(entry.note ? [entry.note] : [])]
   }
   // Grouped the way the detail sheet groups it (sessionSections): per routine first, so a
   // superset is only ever paired inside one routine's section, in the order the sheet lists them.

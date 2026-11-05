@@ -4,9 +4,11 @@ import { createDrafts } from './drafts.js';
 import { random } from './store.js';
 import { searchCatalogue, exerciseView, normalizeExerciseName } from './catalogue.js';
 
+import { fieldDefinitionSchema } from './activity-fields-schema.js';
+import { cleanFieldDefinitions } from '../../frontend/src/lib/activity-fields.js';
 const text=z.string().trim().min(1).max(80);
 const muscleList=z.array(text).max(20);
-const fields={name:text,aliases:z.array(text).max(20),body_part:z.enum(BODYPARTS),equipment:text,
+const fields={field_definitions:z.array(fieldDefinitionSchema).max(20),activity_type:z.enum(['strength','cardio','climbing','custom']),name:text,aliases:z.array(text).max(20),body_part:z.enum(BODYPARTS),equipment:text,
   description:z.string().trim().max(1000),primary_muscles:muscleList,secondary_muscles:muscleList};
 export const customExerciseUpdateShape={operation:z.enum(['create','update','archive','restore','delete']),
   exercise_id:z.string().min(1).max(64).optional(),
@@ -40,7 +42,8 @@ export function exerciseUsage(s,id) {
 }
 function updateMetadata(old,f) {
   const next={...old};
-  for(const [key,stored] of Object.entries({name:'n',body_part:'bp',equipment:'eq',description:'desc'}))if(Object.hasOwn(f,key))next[stored]=f[key];
+  for(const [key,stored] of Object.entries({name:'n',body_part:'bp',equipment:'eq',description:'desc',activity_type:'activity_type'}))if(Object.hasOwn(f,key))next[stored]=f[key];
+  if(f.field_definitions)next.field_definitions=cleanFieldDefinitions(f.field_definitions);
   if(f.aliases)next.aliases=unique(f.aliases).filter(a=>normalizeExerciseName(a)!==normalizeExerciseName(next.n));
   if(f.primary_muscles||f.secondary_muscles) {
     const primary=unique(f.primary_muscles||old.primaries||(old.tg?[old.tg]:[]));
@@ -90,6 +93,8 @@ export function createCustomExercises({read,append}) {
         if(!usage.can_delete)throw Error('This exercise is referenced by routines, workouts, notes or other saved data. Archive it instead. Usage: '+JSON.stringify(usage));
         after=null;
       }
+      if(after?.activity_type==='custom'&&!after.field_definitions?.length)throw Error('Custom activities require declared measurement fields.');
+      if(editing&&p.fields.activity_type&&old.activity_type!==after.activity_type&&!usage.can_delete)throw Error('A referenced exercise cannot change activity type. Create a separate exercise.');
       if(editing&&((old.bp==='cardio')!==(after.bp==='cardio'))&&!usage.can_delete)throw Error('A referenced exercise cannot change between cardio and non-cardio. Create a separate exercise to preserve recording semantics.');
       const nameChanged=creating||editing&&normalizeExerciseName(old.n)!==normalizeExerciseName(after.n);
       const aliasesChanged=creating||!!p.fields?.aliases;

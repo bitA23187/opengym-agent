@@ -11,7 +11,7 @@ const { objects } = JSON.parse(converted.stdout)
 const target = Object.values(objects).find(o => o.isa === 'PBXNativeTarget' && o.name === 'App')
 const sources = target.buildPhases.map(id => objects[id]).find(o => o.isa === 'PBXSourcesBuildPhase')
 const compiled = sources.files.map(id => objects[objects[id].fileRef].path)
-for (const source of ['HealthKitPlugin.swift', 'HealthKitPlugin.m', 'HealthKitSync.swift', 'HealthSyncModels.swift', 'OpenGymBridgeViewController.swift']) {
+for (const source of ['DeviceAuthPlugin.swift', 'HealthKitPlugin.swift', 'HealthKitPlugin.m', 'HealthKitSync.swift', 'HealthSyncModels.swift', 'OpenGymBridgeViewController.swift']) {
   if (!compiled.includes(source)) throw new Error(`${source} is not compiled in the App target`)
   read('App/' + source)
 }
@@ -19,6 +19,7 @@ const storyboard = read('App/Base.lproj/Main.storyboard')
 if (!storyboard.includes('customClass="OpenGymBridgeViewController"')) throw new Error('Storyboard does not instantiate the local plugin bridge')
 const bridge = read('App/OpenGymBridgeViewController.swift')
 if (!bridge.includes('registerPluginInstance(HealthKitPlugin())')) throw new Error('Local HealthKit plugin is not explicitly registered')
+if (!bridge.includes('registerPluginInstance(DeviceAuthPlugin())')) throw new Error('DeviceAuth plugin is not registered')
 const info = read('App/Info.plist'), entitlements = read('App/App.entitlements')
 if (!info.includes('NSHealthShareUsageDescription') || !info.includes('ch.duartesantos.opengym.health-refresh') || !entitlements.includes('com.apple.developer.healthkit.background-delivery')) throw new Error('Health permissions/background configuration missing')
 console.log('iOS project wiring OK: compiled sources, storyboard bridge, plugin registration and Health capabilities.')

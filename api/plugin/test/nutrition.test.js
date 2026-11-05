@@ -56,3 +56,17 @@ test('legacy completion flags are ignored; reads and writes have no day status',
  assert.equal(h.state.nutritionDays,undefined);
  assert.equal(Object.hasOwn(h.service.read(user,{from:meal.date,to:meal.date}).days[0],'complete'),false);
 });
+
+test('opted-in food upserts and restores save directly, including mixed meals; review and removal still gate saves',()=>{
+ let state={_rev:1,_wid:'a',routines:[],workouts:[]};
+ const service=createNutrition({read:()=>state,append:(u,d)=>state=appendTrainingUpdate(state,d),autoSaveUsers:['alice']});
+ const food={name:'Milk',basis:{quantity:100,unit:'ml'},nutrients:{calories:35,protein:3.5},source:'Label'};
+ const input={timezone:'Asia/Taipei',foods:[{operation:'upsert',id:'milk',food}],entries:[{...meal,items:[{item_id:'glass',food_id:'milk',quantity:250,unit:'ml'}]}]};
+ let p=service.preview(user,grant,input);assert.equal(p.authorization.requires_user_confirmation,false);
+ service.save(user,grant,p.draft_id,true,p.confirmation_summary);assert.equal(state.foods.milk.name,'Milk');assert.equal(Object.values(state.nutritionEntries)[0].protein,8.8);
+ p=service.preview(user,grant,{timezone:input.timezone,foods:[{operation:'upsert',id:'milk',food:{...food,servings:[{id:'bottle',name:'Bottle',quantity:250,unit:'ml'}]}}]});assert.equal(p.authorization.requires_user_confirmation,false);service.save(user,grant,p.draft_id,true,p.confirmation_summary);
+ assert.equal(service.preview({id:'bob'},grant,input).authorization.requires_user_confirmation,true);
+ p=service.preview(user,grant,{...input,entries:undefined,review_questions:['Is the label per 100 ml?']});assert.equal(p.authorization.requires_user_confirmation,true);assert.throws(()=>service.save(user,grant,p.draft_id,true,p.confirmation_summary),/Resolve review_questions/);
+ p=service.preview(user,grant,{timezone:input.timezone,foods:[{operation:'archive',id:'milk'}]});assert.equal(p.authorization.requires_user_confirmation,true);service.save(user,grant,p.draft_id,true,p.confirmation_summary);
+ p=service.preview(user,grant,{timezone:input.timezone,foods:[{operation:'restore',id:'milk'}]});assert.equal(p.authorization.requires_user_confirmation,false);service.save(user,grant,p.draft_id,true,p.confirmation_summary);assert.equal(state.foods.milk.archived,false);
+});

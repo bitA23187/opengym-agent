@@ -14,6 +14,13 @@ it('shows total sleep prominently, switches 7/30 days and keeps missing days sel
  expect(host.querySelector('[aria-label="Multi-day sleep stages chart"]')).not.toBeNull()
  await act(async()=>[...host.querySelectorAll('button')].find(e=>e.textContent==='Duration').click());expect(host.querySelector('[aria-label="Daily sleep duration chart"]')).not.toBeNull()
  const month=[...host.querySelectorAll('button')].find(e=>e.textContent==='30 days');await act(async()=>month.click());expect(host.querySelectorAll('[data-sleep-day]')).toHaveLength(30)
- await act(async()=>host.querySelector('[data-sleep-day="2026-10-23"]').dispatchEvent(new MouseEvent('click',{bubbles:true})));expect(host.querySelector('.sleep-daily-value').textContent).toBe('—');expect(host.querySelector('.sleep-day-detail').textContent).toContain('No sleep record')
+ await act(async()=>host.querySelector('[data-sleep-day="2026-10-23"]').dispatchEvent(new MouseEvent('click',{bubbles:true})));expect(host.querySelector('.sleep-daily-value').textContent).toBe('–');expect(host.querySelector('.sleep-day-detail').textContent).toContain('No sleep record')
  const stages=[...host.querySelectorAll('button')].find(e=>e.textContent==='Sleep stages');await act(async()=>stages.click());expect(host.querySelector('[aria-label="Multi-day sleep stages chart"]')).not.toBeNull();expect(host.querySelectorAll('.sleep-asleepCore')).toHaveLength(2)
+})
+
+it('places the period controls with the chart controls below the daily summary',()=>{
+ act(()=>root.render(<Harness/>))
+ expect(host.querySelector('.health-heading [aria-label="Sleep display period"]')).toBeNull()
+ const period=host.querySelector('.sleep-period'), mode=host.querySelector('.sleep-mode')
+ expect(period.nextElementSibling).toBe(mode)
 })

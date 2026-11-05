@@ -1,0 +1,3 @@
+.date-picker{display:flex;flex-wrap:wrap;align-items:center;gap:8px;color:var(--label-2);margin:0 0 20px;min-width:0}
+.date-picker>.icn{flex:none}
+.date-picker .field{width:auto;min-width:0;max-width:100%;border:var(--hair) solid var(--sep)}

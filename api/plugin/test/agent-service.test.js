@@ -11,10 +11,10 @@ import {EXIDX} from '../../../frontend/src/lib/exercises.js';
 const user={id:'alice'},grant='grant';
 const routine=(id='a')=>({id,name:id.toUpperCase(),ex:[{id:'0293',mode:'reps',sets:3,reps:10,weight:12,prog:'off'}]});
 const seed=()=>({unit:'kg',routines:[routine(),routine('b')],week:{4:'a'},dayPlan:{},workouts:[],customEx:[],_rev:1,_wid:'w',unknown:{keep:true},bodyweight:[{d:'2026-10-15',w:80}]});
-function harness(initial=seed()) {
+function harness(initial=seed(),autoSaveUsers=[]) {
  let state=structuredClone(initial);
  const read=()=>structuredClone(state);
- const plans=createPlans({read,append:(u,d)=>{state=appendPlan(state,d);return {saved:true,revision:state._rev};}});
+ const plans=createPlans({read,autoSaveUsers,append:(u,d)=>{state=appendPlan(state,d);return {saved:true,revision:state._rev};}});
  const saveEdit=d=>plans.saveEdit(user,grant,d.draft_id,true,d.confirmation_summary,(u,x)=>{state=appendPlanEdit(state,x);return {saved:true,revision:state._rev};});
  const training=createTraining({read,append:(u,d)=>{state=appendTrainingUpdate(state,d);return state;}});
  return {read,plans,saveEdit,training,saveTraining:d=>training.save(user,grant,d.draft_id,true,d.confirmation_summary),
@@ -22,6 +22,21 @@ function harness(initial=seed()) {
 }
 const entry=(sets)=>({id:'0293',target:{mode:'reps',sets:sets.length,reps:10,weight:12},sets});
 const workout=(id,date,sets)=>({id,d:date,name:'A',routineId:'a',routineIds:['a'],entries:[entry(sets)]});
+test('standing plan authorization covers additions and arrangements; questions block both saves and other users still confirm',()=>{
+ const h=harness(seed(),['alice']),input={unit:'kg',routines:[{name:'Chest',exercises:[{exercise_id:'0293',sets:3,reps:10,weight:12}]}]};
+ let p=h.plans.preview(user,grant,input);assert.equal(p.authorization.requires_user_confirmation,false);assert.equal(h.read().routines.length,2);
+ assert.throws(()=>h.plans.save({id:'bob'},grant,p.draft_id,true,p.confirmation_summary),/different authorization/);
+ assert.throws(()=>h.plans.save(user,grant,p.draft_id,true,'wrong'),/summary/);
+ h.plans.save(user,grant,p.draft_id,true,p.confirmation_summary);assert.equal(h.read().routines.length,3);assert.equal(h.plans.save(user,grant,p.draft_id,true,p.confirmation_summary).already_saved,true);
+ assert.equal(h.plans.preview({id:'bob'},grant,input).authorization.requires_user_confirmation,true);
+ p=h.plans.preview(user,grant,{...input,review_questions:['Did you mean 12 or 120 kg?']});assert.equal(p.authorization.requires_user_confirmation,true);assert.throws(()=>h.plans.save(user,grant,p.draft_id,true,p.confirmation_summary),/Resolve review_questions/);
+ const edit={operations:[{type:'set_weekday',weekday:1,routine_ids:['b']}],routine_edits:[{routine_id:'a',operations:[{type:'update_exercise',index:0,fields:{weight:15}}]}]};
+ p=h.plans.previewEdit(user,grant,edit);assert.equal(p.authorization.requires_user_confirmation,false);h.saveEdit(p);assert.equal(h.read().routines[0].ex[0].weight,15);assert.equal(h.read().week[1],'b');
+ assert.equal(h.plans.previewEdit(user,grant,{restore_version_id:h.plans.versions(user).versions[0].id}).authorization.requires_user_confirmation,true);
+ assert.equal(h.plans.previewEdit({id:'bob'},grant,edit).authorization.requires_user_confirmation,true);
+ p=h.plans.previewEdit(user,grant,{...edit,review_questions:['Which training day?']});const before=h.read();assert.throws(()=>h.saveEdit(p),/Resolve review_questions/);assert.deepEqual(h.read(),before);
+ assert.throws(()=>h.plans.previewEdit(user,grant,{...edit,review_questions:['']}));
+});
 test('per-side template/add/update reps agree with app L+R storage and preview',()=>{
  const h=harness(),draft=h.plans.preview(user,grant,{unit:'kg',routines:[{name:'Unilateral',exercises:[{exercise_id:'0293',sets:3,reps:10,per_side:true,weight:12,progression:'off'}]}]});
  assert.equal(draft.adds_routines[0].ex[0].reps,20);

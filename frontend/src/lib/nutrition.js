@@ -1,3 +1,17 @@
+import { cleanMealItems,itemTotals } from './foods.js'
+
+// A nutrition day runs from 05:00 to 04:59 in the device's local timezone.
+// Calendar arithmetic preserves the boundary across daylight-saving changes.
+export function nutritionToday(now = new Date()) {
+  const date = new Date(now)
+  if (date.getHours() < 5) date.setDate(date.getDate() - 1)
+  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0')
+}
+export function shiftNutritionDate(date, days) {
+  const next = new Date(date + 'T12:00:00Z')
+  next.setUTCDate(next.getUTCDate() + days)
+  return next.toISOString().slice(0, 10)
+}
 // Meals are independently stamped map entries. Cleared entries remain as tombstones.
 export const NUTRIENTS = ['calories', 'protein', 'carbs', 'fat', 'alcohol']
 export const MEALS = ['Breakfast', 'Lunch', 'Dinner', 'Snack', 'Daily total']
@@ -6,9 +20,12 @@ export const validNutritionDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') && Nu
 export function cleanMeal(input) {
   if (!validNutritionDate(input.date) || !MEALS.includes(input.meal)) throw Error('Choose a valid date and meal.')
   if (input.time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(input.time)) throw Error('Choose a valid meal time.')
-  const out = { date: input.date, meal: input.meal, time: input.time || '', description: String(input.description || '').trim().slice(0, 2000), source: NUTRITION_SOURCES.includes(input.source) ? input.source : 'Estimate' }
+  const items=input.items?.length?cleanMealItems(input.items):null
+  const totals=items?itemTotals(items):null
+  if(items&&input.meal==='Daily total')throw Error('Food items belong to meals, not a daily total.')
+  const out = { ...(items?{items}:{}),date: input.date, meal: input.meal, time: input.time || '', description: String(input.description || '').trim().slice(0, 2000), source: NUTRITION_SOURCES.includes(input.source) ? input.source : 'Estimate' }
   for (const k of NUTRIENTS) {
-    const v = input[k]
+    const v = totals?totals[k]:input[k]
     if (v == null || v === '') out[k] = null
     else {
       const n = typeof v === 'number' ? v : Number(v)
@@ -16,7 +33,13 @@ export function cleanMeal(input) {
       out[k] = Math.round(n * 10) / 10
     }
   }
-  if (!NUTRIENTS.some(k => out[k] != null)) throw Error('Enter at least one nutrition value.')
+  if(input.eaten_at) {
+    const timestamp=Date.parse(input.eaten_at)
+    if(!validNutritionDate(input.eaten_at.slice(0,10))||!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(input.eaten_at)||!Number.isFinite(timestamp))throw Error('Actual eating time requires an explicit timezone offset.')
+    out.eaten_at=input.eaten_at
+  }
+  out.log_date=out.date
+  if (!items&&!NUTRIENTS.some(k => out[k] != null)) throw Error('Enter at least one nutrition value.')
   return out
 }
 export function mealsOn(S, date) {

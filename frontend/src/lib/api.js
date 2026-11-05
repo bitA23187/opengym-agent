@@ -2,6 +2,7 @@
 import { t } from './i18n-core.js'
 import { MOBILE } from './mobile.js'
 import { appBase } from './app-base.js'
+import { resetReadCache } from './read-cache.js'
 import { nativeFetch } from './capacitor-fetch.js'
 
 export const IS_APPLE = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
@@ -23,7 +24,11 @@ export const webauthnOK = () => typeof window.PublicKeyCredential !== 'undefined
 // same-origin cookies, so remoteBase/remoteToken stay empty and api() behaves exactly as before.
 let remoteBase = ''
 let remoteToken = null
-export function setRemoteAuth(base, token) { remoteBase = base || ''; remoteToken = token || null }
+export function setRemoteAuth(base, token) {
+  if (remoteBase !== (base || '') || !token) resetReadCache()
+  remoteBase = base || ''
+  remoteToken = token || null
+}
 // A Cloudflare Access service token (lib/cf-access.js): sent only to the origin it was entered
 // for, never on a same-origin request, where the browser's own Access session cookie already
 // does the job, and never to a server that merely happens to be paired or typed in.
@@ -84,10 +89,14 @@ async function request(url, init, ms) {
 // made a push look accepted by a server "from before revisions" — the change was marked synced
 // and dropped from the queue. It is an error, with the status it came with.
 async function exchange(url, init) {
-  const r = await fetch(url, init)
+  const r = await fetch(url, { cache: 'no-store', ...init })
   let data
   let parsed = true
-  try { data = await r.json() } catch { parsed = false }
+  try { data = await r.json() } catch (e) {
+    // A broken response stream (common during network handoff) is not an HTML answer.
+    if (r.ok && (e?.name === 'TypeError' || e?.name === 'AbortError')) throw e
+    parsed = false
+  }
   const body = parsed && data && typeof data === 'object' ? data : null
   // The body rides along on the error: a 409 from /api/data carries the server's document.
   if (!r.ok) { const e = new Error((body && body.error) || ('HTTP ' + r.status)); e.status = r.status; e.data = body || {}; throw e }

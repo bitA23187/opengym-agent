@@ -1,3 +1,6 @@
+import { dailyModeOf, settleAll } from '../lib/weigh-ins.js'
+import { csvExportSheet } from '../components/CsvExportSheet.jsx'
+import { DeleteAccountRow } from '../components/DeleteAccount.jsx'
 import { useEffect, useRef, useState, forwardRef, useSyncExternalStore } from 'react'
 import { useNavigate, useParams, useLocation, Navigate } from 'react-router-dom'
 import { useStore, DEF, hasData } from '../store/useStore.js'
@@ -16,6 +19,7 @@ import { unlock, chime, playOnSilentSupported, vibrateSupported, appleTouchDevic
 import { REST_SOUND_IDS, restSoundOf } from '../lib/rest-sounds.js'
 import { scheduleModeOf, chooseFixedWeek, chooseRotation } from '../lib/rotation.js'
 import { queueOf } from '../lib/queue.js'
+import { muscleTargetsSheet } from '../components/WeeklySets.jsx'
 import { api, webauthnOK, passkeyRegister, passkeyError, IS_ANDROID } from '../lib/api.js'
 import { pushSupported, enablePush, disablePush, sendTestPush, syncPushSubscription } from '../lib/push.js'
 import { wakeLockSupported } from '../lib/wakelock.js'
@@ -41,7 +45,7 @@ import { showsConnection, showsLocalLine } from '../components/SyncBanner.jsx'
 import BackupFolderRow, { useBackupFolder, autoBackupSubtitle } from '../components/BackupFolderRow.jsx'
 import { ServerSyncSection, KeptChangesRows, leaveServer, connectServer, passkeySignIn } from '../components/ServerSync.jsx'
 import { passwordOn, PasswordRow, openPasswordSignIn, openPasswordRegister } from '../components/PasswordAuth.jsx'
-import { usePasskeys, PasskeysRow, DeviceLinkRow, openDeviceLinkRedeem } from '../components/Passkeys.jsx'
+import { usePasskeys, PasskeysRow, DeviceLinkRow, openDeviceLinkRedeem, PairSheet } from '../components/Passkeys.jsx'
 import { Section, Row, SelectRow, Switch, Segmented, Button, TextField, SearchField } from '../components/ui.jsx'
 import { PAGES, ROOT_GROUPS, pageVisible, searchSettings, pageTrail } from './settings-pages.js'
 
@@ -468,6 +472,12 @@ export default function Settings({ page = null, find = null, via = null }) {
             { value: 'last', label: t('Last time'), subtitle: t('What you did the last time, in that routine.') },
             { value: 'best', label: t('Best set'), subtitle: t('Your heaviest set of the exercise, from any workout.') },
           ]} />
+        {/* Each finished set against the same set last time (#907, lib/set-trend.js), in the
+            workout and in History. On unless switched off. */}
+        <Row icon="arrowUp" iconTint="var(--green)" title={t('Compare sets with last time')}
+          subtitle={t('A small ↑, = or ↓ on each set you finish, in the workout and in History.')}>
+          <Switch aria-label={t('Compare sets with last time')} checked={S.setTrend !== false} onChange={v => update(s => { s.setTrend = v })} />
+        </Row>
         {/* One exercise at a time (cards with Prev/Next), the whole session stacked as a
             scrollable list, or that list stripped to just names and set rows (compact). Legacy or
             unknown values read as cards. The workout's ⋯ menu can override it for one session. */}
@@ -639,11 +649,17 @@ export default function Settings({ page = null, find = null, via = null }) {
         </Row>
       </Section>
       <Section>
+        {/* The target range of weekly sets for each main muscle (lib/muscle-targets.js). */}
+        <Row icon="slider" iconTint="var(--teal)" title={t('Weekly sets per muscle')} subtitle={t('The range each muscle aims for')} accessory="chevron" onClick={muscleTargetsSheet} />
         <Row icon="clipboard" iconTint="var(--green)" title={t('Load starter plan')} accessory="chevron" onClick={starterPlanSheet} />
       </Section>
     </>,
 
     units: () => <>
+      <Section>        <SelectRow icon="scale" iconTint="var(--green)" title={t('Daily weigh-in value')}
+          value={dailyModeOf(S)} onChange={v => update(s => { s.bwDaily = v; settleAll(s, v) })}
+          options={[{value:'first',label:t('Morning (first)')},{value:'avg',label:t('Average')},{value:'last',label:t('Last')}]} />
+</Section>
       <Section>
         <SelectRow
           icon="globe" iconTint="var(--blue)" title={t('Language')}
@@ -761,6 +777,15 @@ export default function Settings({ page = null, find = null, via = null }) {
           subtitle={t('Show the body weight card on Home.')}>
           <Switch checked={S.showWeightCard !== false} onChange={v => update(s => { s.showWeightCard = v })} />
         </Row>
+        <Row icon="chart" iconTint="var(--purple)" title={t('Week and month recap')}
+          subtitle={t('A small card when a new week or month starts: what the last one added up to.')}>
+          <Switch aria-label={t('Week and month recap')} checked={S.recap !== false} onChange={v => update(s => { s.recap = v })} />
+        </Row>
+        {/* This week's sets for the muscle with the most room, under the streak (components/WeeklySets.jsx). */}
+        <Row icon="figureStrength" iconTint="var(--teal)" title={t('Weekly sets on Home')}
+          subtitle={t('The muscle with the most room left this week, under your streak.')}>
+          <Switch aria-label={t('Weekly sets on Home')} checked={S.homeMuscleSets === true} onChange={v => update(s => { s.homeMuscleSets = v })} />
+        </Row>
         {/* The bar at the top that says the app is offline, kept local, or not synced (#369, #330).
             Here and not under Server & sync, which a phone kept local never shows. Switching it on
             also brings back the no-server line its × hid (#454). */}
@@ -773,6 +798,7 @@ export default function Settings({ page = null, find = null, via = null }) {
 
     data: () => <>
       <Section title={t('Back up')}>
+        <Row icon="share" iconTint="var(--blue)" title={t('Export as spreadsheet (CSV)')} subtitle={t('Workouts and body data')} accessory="chevron" onClick={csvExportSheet} />
         <Row icon="share" iconTint="var(--blue)" title={t('Export backup (JSON)')} subtitle={hasMedia ? t('Without photos and videos') : undefined} accessory="chevron" onClick={doExport} />
         {hasMedia && <Row icon="share" iconTint="var(--blue)" title={t('Export with photos & videos (.zip)')} accessory="chevron" onClick={doExportZip} />}
         {/* 14 is AUTO_BACKUP_KEEP in lib/mobile.js, written out because the Settings tests mock
@@ -889,6 +915,9 @@ export default function Settings({ page = null, find = null, via = null }) {
           <Row icon="lock" iconTint="var(--grey)" title={t('Passkeys not supported in this browser.')} />
           <KeptChangesRows />
         </>}
+      </Section>}
+      {user && !DEMO && <Section>
+        <DeleteAccountRow exportBackup={doExport} exportBackupZip={doExportZip} hasMedia={hasMedia} done={() => nav('/home')} />
       </Section>}
       {/* The connection banner already says this to a guest; the line is for when it is switched
           off, or its × hid it (#454). */}
@@ -1126,13 +1155,17 @@ function PushCard({ S, update, toast }) {
   // "On" means the server holds this browser's subscription, not merely that the browser has
   // one: a row the instance dropped (dead send, rebuilt db.json) left the switch on with nothing
   // ever arriving. syncPushSubscription re-registers on the way; if the server cannot be asked
-  // (offline), the browser's side is the best answer available.
+  // (offline), the browser's side is the best answer available. A server that refused this
+  // browser's subscription, even a fresh one, has answered: the switch is off, with its reason.
   useEffect(() => {
     if (!supported) return
     let gone = false
     syncPushSubscription()
       .then(ok => { if (!gone) setOn(ok) })
-      .catch(() => navigator.serviceWorker.ready.then(reg => reg.pushManager.getSubscription()).then(sub => { if (!gone) setOn(!!sub) }).catch(() => {}))
+      .catch(e => {
+        if (e?.refused) { if (!gone) { setOn(false); toast(e.message) } return }
+        return navigator.serviceWorker.ready.then(reg => reg.pushManager.getSubscription()).then(sub => { if (!gone) setOn(!!sub) }).catch(() => {})
+      })
     return () => { gone = true }
   }, [supported])
 
@@ -1372,28 +1405,6 @@ function AccountIdRow({ id }) {
   if (!id) return null
   const copy = async () => { if (await copyText(id)) toast(t('Account ID copied')) }
   return <Row icon="personCircle" iconTint="var(--grey)" title={t('Account ID')} subtitle={<span className="acct-id">{id}</span>} onClick={copy} />
-}
-
-// Lets the mobile app's "connect to my server" mode (lib/remote.js) authenticate without a
-// WebAuthn ceremony of its own — the code is minted here, from an already signed-in session,
-// and redeemed by the app for a bearer token. See /api/pair/create in api/server.js.
-function PairSheet({ close }) {
-  const [code, setCode] = useState(null)
-  const [err, setErr] = useState(null)
-  useEffect(() => { api('/api/pair/create', { method: 'POST', body: '{}' }).then(r => setCode(r.code)).catch(e => setErr(e.message || t('Could not generate a code'))) }, [])
-  return <>
-    <h3>{t('Pair the mobile app')}</h3>
-    <div className="muted small" style={{ marginBottom: 14 }}>
-      {t('On the openGym app, choose “Connect to my server”, then enter this address and the code below. It expires in 5 minutes.')}
-    </div>
-    {err ? <div className="dim small">{err}</div> : (
-      <div className="card" style={{ textAlign: 'center', fontSize: 30, fontWeight: 700, letterSpacing: '.16em', padding: '18px 0' }}>
-        {code || '········'}
-      </div>
-    )}
-    <div style={{ height: 12 }} />
-    <Button onClick={close}>{t('Done')}</Button>
-  </>
 }
 
 // The same registration as the sign-in screen's, reached from Settings instead. It asks for

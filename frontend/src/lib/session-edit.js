@@ -1,3 +1,4 @@
+import {validateActivitySet} from './activity-data.js'
 // Editing a workout that is already in history (#143): its exercises, sets and notes.
 //
 // The editor is the ordinary workout screen working on a copy in S.active (`editingWorkoutId`
@@ -144,6 +145,7 @@ export function saveWorkoutEdit(state, now = Date.now()) {
   if (editLeftEmpty(active)) throw new Error('Nothing logged yet')
   const current = state.workouts[index]
   const record = draftRecord(active, current, key)
+  for(const e of record.entries)for(const r of e.sets)for(const row of r.sides?[r.sides.L,r.sides.R]:[r])validateActivitySet(row,e.target?.mode||'reps')
   // A Save that changed nothing closes the editor and leaves the record as it is. A new stamp
   // would outrank an edit another device made since and has not synced yet (sets added on the
   // phone), for nothing — the date and duration rows skip an unchanged save the same way.

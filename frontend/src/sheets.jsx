@@ -1,4 +1,9 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import DateField from './components/DateField.jsx'
+import { addWeighIn, editWeighIn, removeWeighIn, restoreWeighIn, readingsOf, allReadings, readingTime, timeOf, cleanTime, defaultTimeFor, dailyModeOf, DEFAULT_TIME } from './lib/weigh-ins.js'
+import {MeasurementFieldsEditor} from './components/ActivityMeasurements.jsx'
+import {cleanFieldDefinitions} from './lib/activity-fields.js'
+import {StructuredActivities,LogActivityForm} from './components/StructuredActivity.jsx'
+import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
 import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, equipmentOf, byCategory, smOf, searchExercises, similarExercises, exOr, isAssisted, betterWeight, beatsWeight, isCustomEx } from './lib/exercises.js'
@@ -35,7 +40,10 @@ import { parseImport, mergeImport } from './lib/import-csv.js'
 import { importHevyData, HevyApiError, HEVY_DEV_SETTINGS, mergeHevyRoutines } from './lib/import-hevy.js'
 import { buildPlanBundle, parsePlan, mergePlan, printPlan, planPrintHTML } from './lib/plan-share.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP, formulaOf, FORMULA_NAMES } from './lib/onerm.js'
+import { setTrendOn, setTrendsFor, lastTimeBefore, trendGlyph, trendLabel } from './lib/set-trend.js'
+import { setNoteOf, withSetNote, SET_NOTE_MAX } from './lib/set-notes.js'
 import { exerciseHistory } from './lib/exercise-history.js'
+import { relativeSeries } from './lib/relative-strength.js'
 import { isBellEx, dbLoadOf, dbLoadFor, withDbLoad, withMeaning, historyAs, entryDbLoad, currentDbLoad, isOneArm, ownedWeightsFor, dumbbellsOf, ownsDumbbells, withDumbbells, presetWeights, cleanWeights } from './lib/dumbbells.js'
 import { policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS, MAX_TRIPLE_SETS, weightIncrement } from './lib/progression.js'
 import { normalizeRepRange } from './lib/rep-range.js'
@@ -293,25 +301,36 @@ function WeightInput({ value, setValue, unit }) {
 }
 
 /* ============================ body weight ============================ */
-function BwSheet({ required, onDone, close }) {
+// A weigh-in has a time (#859): a day can hold several, and the profile's daily value
+// (Settings → Units, lib/weigh-ins.js) picks the one the charts and the trend use. `edit` opens
+// one weigh-in ({ d, id }) to change; `initial` is a weight an assistant heard (lib/voice.js).
+function BwSheet({ required, onDone, close, initial, edit }) {
   const st = useStore(s => s.S)
   const unit = st.unit
   const bw = lastBW(st)
-  const [v, setV] = useState(bw ? bw.w : 70)
+  const editing = useMemo(() => (edit ? readingsOf(st.bodyweight.find(b => b.d === edit.d)).find(r => r.id === String(edit.id)) || null : null), []) // eslint-disable-line react-hooks/exhaustive-deps
+  const [v, setV] = useState(editing ? editing.w : Number(initial) > 0 ? Math.round(Number(initial) * 10) / 10 : bw ? bw.w : 70)
+  const [date, setDate] = useState(editing ? edit.d : todayISO())
+  // Now for today; another day starts on the time of its first weigh-in, or 08:00. Once picked
+  // by hand, the time stays when the date changes.
+  const [time, setTime] = useState(editing ? (editing.at || DEFAULT_TIME) : timeOf(Date.now()))
+  const [timeSet, setTimeSet] = useState(!!editing)
+  const pickDate = d => { setDate(d); if (!timeSet) setTime(defaultTimeFor(st, d, todayISO())) }
   const save = () => {
     const n = Math.round((v || 0) * 10) / 10
     if (!n || n <= 0) { toast(t('Enter a valid weight')); return }
     if (bwTooHeavy(n, unit)) return
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date > todayISO()) { toast(t('Choose a valid date')); return }
+    // The check-in before a workout is now; a weigh-in at the same time of a day corrects it.
+    const at = required ? timeOf(Date.now()) : cleanTime(time) || (date === todayISO() ? timeOf(Date.now()) : DEFAULT_TIME)
     update(s => {
-      const iso = todayISO()
-      const ex = s.bodyweight.find(b => b.d === iso)
-      if (ex) { ex.w = n; ex.t = Date.now() } else s.bodyweight.push({ d: iso, w: n, t: Date.now() })
-      s.bodyweight.sort((a, b) => (a.d < b.d ? -1 : 1))
+      if (editing) editWeighIn(s, edit.d, edit.id, { d: date, at, w: n })
+      else addWeighIn(s, { d: date, at, w: n })
     })
     close()
-    if (onDone) onDone(n); else toast(t('Weight saved'))
+    if (onDone) onDone(n); else toast(editing ? t('Weigh-in updated') : t('Weight saved'))
   }
-  const recent = [...st.bodyweight].reverse().slice(0, 3)
+  const recent = useMemo(() => allReadings(st.bodyweight).reverse().slice(0, 3), [st.bodyweight])
   return <>
     {/* This sheet opens `locked` — swipe/backdrop/Escape/Android-back all no-op on it (see
         Modals.jsx) so an accidental tap on "Start" can't be walked back by reflex the way
@@ -324,8 +343,20 @@ function BwSheet({ required, onDone, close }) {
           <h3 style={{ marginBottom: 0 }}>{t('Quick check-in')}</h3>
           <button className="iconbtn" aria-label={t('Cancel')} onClick={() => close()}><Icon name="xmark" /></button>
         </div>
-      : <h3>{t('Log body weight')}</h3>}
-    <div className="muted small">{required ? t('Slide or tap to set your weight. We ask before every workout so your curve stays honest.') : t('Today') + ', ' + fmtDate(todayISO(), true)}</div>
+      : <h3>{editing ? t('Edit weigh-in') : t('Log body weight')}</h3>}
+    {required
+      ? <div className="muted small">{t('Slide or tap to set your weight. We ask before every workout so your curve stays honest.')}</div>
+      : <div className="row bw-when">
+          <label className="measure-date">
+            <span>{t('Date')}</span>
+            <DateField value={date} max={todayISO()} onChange={pickDate} label={t('Date')} />
+          </label>
+          <label className="measure-date bw-time">
+            <span>{t('Time')}</span>
+            <input type="time" className="timef" value={time} aria-label={t('Time')}
+              onChange={e => { setTime(e.target.value); setTimeSet(true) }} />
+          </label>
+        </div>}
     <WeightInput value={v} setValue={setV} unit={unit} />
     <div style={{ height: 14 }} />
     <Button variant="primary" onClick={save}>{required ? t('Save & start workout') : t('Save')}</Button>
@@ -333,12 +364,12 @@ function BwSheet({ required, onDone, close }) {
       <div style={{ height: 8 }} /><Button variant="ghost" className="dim" onClick={() => { close(); onDone && onDone(null) }}>{t('Start without weighing in')}</Button>
       <div style={{ height: 2 }} /><Button variant="ghost" className="dim" icon="swap" onClick={() => closeThenNav(close, '/workout')}>{t('Choose a different workout')}</Button>
     </>}
-    {!required && recent.length > 0 && <>
+    {!required && !editing && recent.length > 0 && <>
       <h4 className="sec">{t('Recent weigh-ins')}</h4>
       <div className="list" style={{ gap: 0 }}>
-        {recent.map(b => <WeighInRow key={b.d} b={b} unit={unit} />)}
+        {recent.map(r => <WeighInRow key={r.d + '|' + r.id} d={r.d} r={r} unit={unit} />)}
       </div>
-      {st.bodyweight.length > recent.length && <div className="row" style={{ justifyContent: 'flex-end', marginTop: 6 }}>
+      {allReadings(st.bodyweight).length > recent.length && <div className="row" style={{ justifyContent: 'flex-end', marginTop: 6 }}>
         <Button size="sm" variant="ghost" trailingIcon="chevronRight" onClick={weighInsSheet}>{t('All weigh-ins')}</Button>
       </div>}
     </>}
@@ -350,19 +381,35 @@ export function bwSheet(opts = {}) {
 }
 
 // One weigh-in with its delete button, in the log sheet's recent three and in the full list.
+// Tapping the date and time opens it to change its weight, time or day (#859).
 // The full list asks first (`confirm`): it is months of history scrolled through on a phone, and a
 // stray tap on one of its trash buttons took a past weigh-in with nothing to bring it back. The log
 // sheet's three are the ones just typed, where taking back a typo in one tap is the point.
-function WeighInRow({ b, unit, confirm = false }) {
-  const delEntry = () => update(s => { s.bodyweight = s.bodyweight.filter(x => x.d !== b.d) })
+// Either way the toast offers Undo (#756): the weigh-in comes back as it was, and the store
+// records it as added back (stampDeletions, or the reading stamped anew), so a device that synced
+// the removal keeps it too. `dayShown` false leaves the date out (it heads the day's group).
+function WeighInRow({ d, r, unit, confirm = false, dayShown = true }) {
+  const time = readingTime(r)
+  const delEntry = () => {
+    let undo = null
+    update(s => { undo = removeWeighIn(s, d, r.id) })
+    if (!undo) return
+    ui().toast(t('Weigh-in deleted'), {
+      action: t('Undo'),
+      onAction: () => update(s => { restoreWeighIn(s, undo) }),
+    })
+  }
+  const when = [dayShown ? fmtDate(d, true) : '', time].filter(Boolean).join(' · ') || fmtDate(d, true)
   const ask = () => confirmSheet({
-    title: t('Delete weigh-in?'), message: `${fmtDate(b.d, true)} · ${fmtNum(b.w)} ${unit}`,
+    title: t('Delete weigh-in?'), message: `${[fmtDate(d, true), time].filter(Boolean).join(' · ')} · ${fmtNum(r.w)} ${unit}`,
     confirmText: t('Delete'), danger: true, onConfirm: delEntry,
   })
-  return <div className="row between" style={{ padding: '9px 2px', borderBottom: '1px solid var(--sep)' }}>
-    <span className="small muted">{fmtDate(b.d, true)}</span>
-    <span className="row" style={{ gap: 12 }}><b>{fmtNum(b.w)} {unit}</b>
-      <button className="iconbtn" style={{ width: 32, height: 30, borderRadius: 8, fontSize: 15, color: 'var(--red)' }} onClick={confirm ? ask : delEntry} aria-label={t('Delete weigh-in')}><Icon name="trash" /></button></span>
+  return <div className={'row between bw-row' + (dayShown ? '' : ' bw-sub')} data-reading={r.id}>
+    <button type="button" className="bw-when-btn small muted" onClick={() => bwSheet({ edit: { d, id: r.id } })} aria-label={t('Edit weigh-in') + ', ' + when}>
+      {when}{r.src && r.src !== 'import' && <Icon name="heart" className="bw-src" />}
+    </button>
+    <span className="row" style={{ gap: 12 }}><b>{fmtNum(r.w)} {unit}</b>
+      <button className="iconbtn" data-tour="weighin-del" style={{ width: 32, height: 30, borderRadius: 8, fontSize: 'var(--fs-subhead)', color: 'var(--red)' }} onClick={confirm ? ask : delEntry} aria-label={t('Delete weigh-in')}><Icon name="trash" /></button></span>
   </div>
 }
 
@@ -370,14 +417,16 @@ function WeighInRow({ b, unit, confirm = false }) {
 // Every weigh-in, week by week (Discord 'Weight'): each week under its mean and how far that
 // moved from the week before, the numbers behind the curve on the card. The chart plots the
 // weekly means, since the swing from one morning to the next is what makes a single weigh-in
-// hard to read. The weeks start on the profile's first day of the week.
+// hard to read. The weeks start on the profile's first day of the week. A day with several
+// weigh-ins (#859) lists them all with their times, under the day's value.
 function WeighIns() {
   const st = useStore(s => s.S)
   const ws = weekStartOf(st)
   const weeks = useMemo(() => weeklyWeights(st.bodyweight, ws), [st.bodyweight, ws])
   const points = useMemo(() => [...weeks].reverse()
     .map(w => ({ t: new Date(w.key + 'T12:00:00').getTime(), y: Math.round(w.avg * 100) / 100, d: w.key })), [weeks])
-  const n = weeks.reduce((sum, w) => sum + w.n, 0)
+  const n = useMemo(() => allReadings(st.bodyweight).length, [st.bodyweight])
+  const mode = dailyModeOf(st)
   if (!n) return <>
     <h3>{t('Weigh-ins')}</h3>
     <div className="empty"><div className="ico"><Icon name="scale" /></div>{t('No weigh-ins yet. Log your weight to start the curve.')}</div>
@@ -396,16 +445,28 @@ function WeighIns() {
           <span className="small" style={{ fontWeight: 600 }}>{t('Week of {0}', fmtDate(w.key))}</span>
           <span className="small row" style={{ gap: 8 }}>
             {moved && <span className="row" style={{ gap: 2, fontWeight: 500, color: bwDeltaColor(w.delta, w.avg) }}>
-              <Icon name={w.delta > 0 ? 'arrowUp' : 'arrowDown'} style={{ fontSize: 12 }} />{fmtNum(Math.abs(w.delta))}
+              <Icon name={w.delta > 0 ? 'arrowUp' : 'arrowDown'} style={{ fontSize: 'var(--fs-caption)' }} />{fmtNum(Math.abs(w.delta))}
             </span>}
             <span className="muted" style={{ whiteSpace: 'nowrap' }}>{t('Average {0}', fmtNum(w.avg) + ' ' + st.unit)}</span>
           </span>
         </div>
-        <div className="list" style={{ gap: 0 }}>{w.entries.map(b => <WeighInRow key={b.d} b={b} unit={st.unit} confirm />)}</div>
+        <div className="list" style={{ gap: 0 }}>{w.entries.map(b => {
+          const rs = readingsOf(b)
+          if (rs.length <= 1) return rs.map(r => <WeighInRow key={b.d + '|' + r.id} d={b.d} r={r} unit={st.unit} confirm />)
+          return <div key={b.d} data-day={b.d}>
+            <div className="row between bw-day">
+              <span className="small muted">{fmtDate(b.d, true)}</span>
+              <span className="small dim">{dailyLabel(mode, fmtNum(b.w) + ' ' + st.unit)}</span>
+            </div>
+            {rs.map(r => <WeighInRow key={b.d + '|' + r.id} d={b.d} r={r} unit={st.unit} confirm dayShown={false} />)}
+          </div>
+        })}</div>
       </div>
     })}
   </>
 }
+// The line over a day with several weigh-ins: which one the day's value is.
+const dailyLabel = (mode, w) => (mode === 'avg' ? t('Day average {0}', w) : mode === 'last' ? t('Last value {0}', w) : t('Morning value {0}', w))
 export const weighInsSheet = () => ui().openSheet(close => <WeighIns close={close} />)
 
 /* ============================ import from another app ============================ */
@@ -996,13 +1057,13 @@ function ExerciseDetail({ ex, close }) {
     </div>
     {descFor(ex) && <div className="exnote">{descFor(ex)}</div>}
     {best > 0 && <div className="small row" style={{ marginBottom: 6, gap: 5 }}><Icon name="trophy" style={{ fontSize: 14, color: 'var(--yellow)' }} />{t('Best:')} <b className="accent" style={{ whiteSpace: 'nowrap' }}>{fmtNum(best)} {st.unit}</b>{last ? ` · ${t('last')} ${fmtDate(last.d)}: ${last.sets.map(s => setLabel(ex.id, s, last.target, speedUnitOf(st))).join(', ')}` : ''}</div>}
-    <Button variant="primary" icon="plus" style={{ margin: '10px 0 4px' }} onClick={() => addToRoutineSheet(ex)}>{t('Add to my plan')}</Button>
+    <Button variant="primary" icon="plus" style={{ margin: '10px 0 4px' }} onClick={() => addToRoutineSheet(ex)}>{t(['climbing','custom'].includes(ex.activity_type)?'Log activity':'Add to my plan')}</Button>
     {last && <Button icon="history" style={{ marginTop: 4 }} onClick={() => exerciseHistorySheet(ex.id)}>{t('History')}</Button>}
     {isCustomEx(ex) && <div className="row" style={{ gap: 8, marginTop: 8 }}>
       <Button icon="pencil" style={{ flex: 1 }} onClick={() => { close(); customExSheet(ex) }}>{t('Edit')}</Button>
       <Button variant="danger" icon="trash" style={{ flex: 1 }} onClick={() => deleteCustomEx(ex, close)}>{t('Delete')}</Button>
     </div>}
-    {modeOf({ id: ex.id }) === 'reps' && <>
+    {!['climbing','custom'].includes(ex.activity_type)&&modeOf({ id: ex.id }) === 'reps' && <>
       <h4 className="sec">{t('Plate loading')}</h4>
       <BarWeightEditor ex={ex} extra={t('You still log the total weight. This only feeds the plate line under each set.')} />
     </>}
@@ -1016,7 +1077,8 @@ function ExerciseDetail({ ex, close }) {
     {/* No one-rep max on an assistance machine: the load is the help you were given, so the
         calculator would answer "your 1RM is 23 kg" about a number that gets smaller as you get
         stronger (issue #232). Cardio has none for the same kind of reason. */}
-    {!isCardio(ex) && !isAssisted(ex) && <OneRM ex={ex} />}
+    {!['climbing','custom'].includes(ex.activity_type)&&!isCardio(ex) && !isAssisted(ex) && <OneRM ex={ex} />}
+    {ex.field_definitions?.length>0&&<><h4 className="sec">{t('Additional measurement fields')}</h4>{ex.field_definitions.map(f=><p className="small" key={f.key}>{f.label}{f.unit?' · '+f.unit:''}</p>)}</>}
     {instrFor(ex).length > 0 &&<><h4 className="sec">{t('How to')}{getLang() !== 'en' && !instrTranslated(ex) && <span className="dim" style={{ textTransform: 'none', letterSpacing: 0 }}> · {t('instructions in English')}</span>}</h4><ol className="steps-list">{instrFor(ex).map((s, i) => <li key={i}>{s}</li>)}</ol></>}
     {/* The catalogue is community-edited (catalogue/README.md): a wrong muscle, a clumsy step or a
         missing translation is one tap from an issue that already names the exercise. */}
@@ -1038,9 +1100,34 @@ function ExerciseHistory({ exId }) {
   const ex = exOr(exId)
   const h = useMemo(() => exerciseHistory(st, exId), [st.workouts, exId])
   const [curve, setCurve] = useState('top')
-  const onE1 = curve === 'e1rm' && h.e1rmPoints.length > 0
+  // Against body weight, as in Stats: the estimated 1RM (body weight included for bodyweight and
+  // assisted work) as a % of the body weight then. Only for rep work, and only once two sessions
+  // have a body weight to compare with.
+  const formula = formulaOf(st)
+  // The 1RM estimate refuses sets above ~12 reps (lib/onerm.js REP_CAP), so a calf raise or a leg
+  // press done for 15-20 has none; its curve then follows the heaviest set instead (as Stats does),
+  // when that one varies. An assistance machine has no 1RM either, and is always the heaviest set.
+  const { pts: rel, top: relTop } = useMemo(() => {
+    if (h.metric !== 'weight' && h.metric !== 'reps') return { pts: [], top: false }
+    const toPct = p => ({ t: p.t, d: p.d, y: p.y * 100, assisted: p.assisted })
+    const est = relativeSeries(st, exId, { basis: 'e1rm', formula })
+    if (est.length >= 2) return { pts: est.map(toPct), top: est.some(p => p.assisted) }
+    const top = relativeSeries(st, exId, { basis: 'top', formula })
+    const varies = top.length >= 2 && top.some(p => Math.abs(p.y - top[0].y) > 1e-9)
+    return varies ? { pts: top.map(toPct), top: true } : { pts: [], top: false }
+  }, [st.workouts, st.bodyweight, st.dbLoad, exId, h.metric, formula])
+  const canRel = rel.length >= 2
+  const onRel = curve === 'bodyweight' && canRel
+  const onE1 = !onRel && curve === 'e1rm' && h.e1rmPoints.length > 0
   const unit = h.metric === 'weight' ? st.unit : h.metric === 'reps' ? t('reps') : h.metric === 'sec' ? 's' : t('min')
   const e1Best = useMemo(() => Math.max(0, ...h.e1rmPoints.map(p => p.y)), [h])
+  const relBest = useMemo(() => Math.max(0, ...rel.map(p => p.y)), [rel])
+  const curveOpts = []
+  if (h.e1rmPoints.length > 0 && h.metric === 'weight') curveOpts.push({ value: 'top', label: t('Top set') }, { value: 'e1rm', label: t('Est. 1RM') })
+  if (canRel) {
+    if (!curveOpts.length) curveOpts.push({ value: 'top', label: h.metric === 'reps' ? t('Max reps') : t('Top set') })
+    curveOpts.push({ value: 'bodyweight', label: t('Relative strength') })
+  }
   if (!h.total) return <>
     <h3 className={exerciseNameClass(ex)}>{exerciseNameFor(ex)}</h3>
     <div className="empty"><div className="ico"><Icon name="history" /></div>{t('No sessions logged yet')}</div>
@@ -1053,15 +1140,15 @@ function ExerciseHistory({ exId }) {
     <h3 className={exerciseNameClass(ex)} style={{ marginBottom: 2 }}>{exerciseNameFor(ex)}</h3>
     <div className="muted small" style={{ marginBottom: 10 }}>{t('Exercise history')} · {tn('{0} session', '{0} sessions', h.total)}</div>
     {/* Only reps work with a load produces an estimate, so the toggle is absent for the rest. */}
-    {h.e1rmPoints.length > 0 && h.metric === 'weight' && <Segmented className="seg-range" value={curve} onChange={setCurve}
-      options={[{ value: 'top', label: t('Top set') }, { value: 'e1rm', label: t('Est. 1RM') }]} />}
+    {curveOpts.length > 1 && <Segmented className="seg-range" value={onRel ? 'bodyweight' : onE1 ? 'e1rm' : 'top'} onChange={setCurve} options={curveOpts} />}
     <div className="chart" style={{ marginTop: 8 }}>
-      <LineChart points={onE1 ? h.e1rmPoints : h.points} h={140} unit={onE1 ? st.unit : unit} color="var(--blue)" />
+      <LineChart points={onRel ? rel : onE1 ? h.e1rmPoints : h.points} h={140} unit={onRel ? '% BW' : onE1 ? st.unit : unit} color="var(--blue)" />
     </div>
     <div className="small row" style={{ margin: '6px 0 4px', gap: 5 }}>
       <Icon name="trophy" style={{ fontSize: 14, color: 'var(--yellow)' }} />
-      {t('Best:')} <b className="accent">{fmtNum(onE1 ? e1Best : h.best)} {onE1 ? st.unit : unit}</b>
+      {t('Best:')} <b className="accent">{onRel ? fmtNum(relBest) + ' % BW' : fmtNum(onE1 ? e1Best : h.best) + ' ' + (onE1 ? st.unit : unit)}</b>
     </div>
+    {onRel && <div className="small dim">{relTop ? t('Heaviest set as a share of body weight, per workout') : t('Estimated 1RM as a share of body weight, per workout')}</div>}
     <h4 className="sec">{h.sessions.length < h.total ? t('Last {0} sessions', h.sessions.length) : t('Sessions')}</h4>
     <div className="list">
       {h.sessions.map(s => <div key={s.id} className="item" style={{ alignItems: 'flex-start' }}>
@@ -1108,7 +1195,7 @@ function AddToRoutine({ ex, close }) {
     </div>
   </>
 }
-export const addToRoutineSheet = ex => ui().openSheet(close => <AddToRoutine ex={ex} close={close} />)
+export const addToRoutineSheet = ex => ui().openSheet(close => ['climbing','custom'].includes(ex.activity_type)?<LogActivityForm exercise={ex} close={close}/>:<AddToRoutine ex={ex} close={close} />)
 
 /* ============================ custom exercises (issue #11) ============================ */
 // Name + body part is all it takes — the exercise then behaves like any built-in one
@@ -1149,6 +1236,8 @@ function CustomExForm({ existing, prefill, onDone, close }) {
   // user reached for first: an existing exercise seeds it in the map's order, because that is how the
   // muscles are stored. The taps are the only record of the user's own order, and they decide the
   // target when the one the exercise had is un-ticked.
+  const [measurementFields,setMeasurementFields]=useState(existing?.field_definitions||[])
+  const [activityType,setActivityType]=useState(existing?.activity_type||(existing?.bp==='cardio'?'cardio':'strength'))
   const [primaryTaps, setPrimaryTaps] = useState([])
   const togglePrimary = value => {
     setPrimaryTaps(current => [...current, value])
@@ -1156,6 +1245,11 @@ function CustomExForm({ existing, prefill, onDone, close }) {
   }
   const toggleSecondary = value => setSecondaries(current => current.includes(value) ? current.filter(m => m !== value) : [...current, value])
   const save = () => {
+    const st=S()
+    const resolvedActivityType=['climbing','custom'].includes(activityType)?activityType:bp==='cardio'?'cardio':'strength'
+    if(existing&&resolvedActivityType!==(existing.activity_type||(existing.bp==='cardio'?'cardio':'strength'))&&((st.routines||[]).some(r=>r.ex?.some(e=>e.id===existing.id))||(st.workouts||[]).some(w=>w.entries?.some(e=>e.id===existing.id)))){toast(t('Create a separate exercise to change the activity type.'));return}
+    let fields
+    try{fields=cleanFieldDefinitions(measurementFields);if(activityType==='custom'&&!fields.length)throw Error('Declare measurement fields for this activity.')}catch(e){toast(t(e.message));return}
     const name = n.trim()
     if (!name) { toast(t('Give it a name')); return }
     if (!bp) { toast(t('Pick a body part')); return }
@@ -1190,12 +1284,12 @@ function CustomExForm({ existing, prefill, onDone, close }) {
       if (link) c.url = link; else delete c.url
     }
     if (existing) update(s => { const c = (s.customEx || []).find(x => x.id === id); if (c) {
-      c.n = name; c.bp = bp; c.desc = d; c.tg = tg; c.sm = sm; c.muscleGroups = groups; c.primaries = prim; c.secondaries = sm; c.eq = eq
+      c.field_definitions=fields; c.activity_type=['climbing','custom'].includes(activityType)?activityType:bp==='cardio'?'cardio':'strength'; c.n = name; c.bp = bp; c.desc = d; c.tg = tg; c.sm = sm; c.muscleGroups = groups; c.primaries = prim; c.secondaries = sm; c.eq = eq
       extra(c)
     } })
     else {
       id = 'c' + uid()
-      update(s => { const c = { id, n: name, bp, desc: d, tg, sm, muscleGroups: groups, primaries: prim, secondaries: sm, eq, custom: true }; extra(c); (s.customEx = s.customEx || []).push(c) })
+      update(s => { const c = { id, field_definitions:fields,activity_type:['climbing','custom'].includes(activityType)?activityType:bp==='cardio'?'cardio':'strength',n: name, bp, desc: d, tg, sm, muscleGroups: groups, primaries: prim, secondaries: sm, eq, custom: true }; extra(c); (s.customEx = s.customEx || []).push(c) })
     }
     // The file goes to the server now rather than after the state's own debounce: another device
     // that sees the reference first shows a tile until it arrives.
@@ -1218,6 +1312,8 @@ function CustomExForm({ existing, prefill, onDone, close }) {
       {storedEq && <button key={storedEq} className={'chip' + (eq === storedEq ? ' on' : '')} onClick={() => setEq(storedEq)}>{t(storedEq)}</button>}
     </div>
     {bp && <>
+      <label className="nutrition-field">{t('Activity type')}<select className="field" value={activityType} onChange={e=>{setActivityType(e.target.value);if(e.target.value==='cardio')setBp('cardio')}}><option value="strength">{t('Strength')}</option><option value="cardio">{t('Cardio')}</option><option value="climbing">{t('Climbing')}</option><option value="custom">{t('Custom activity')}</option></select></label>
+      <MeasurementFieldsEditor fields={measurementFields} onChange={setMeasurementFields}/>
       {bp !== 'cardio' && <MultiSelectRow title={t('Primary muscle groups')} sheetTitle={t('Primary muscle groups')}
         values={primaries}
         options={MUSCLES.map(m => ({ value: m, label: t(MUSCLE_NAME[m]) }))}
@@ -1298,7 +1394,7 @@ function ExercisePicker({ onPick, title, close, like }) {
   const bpStrip = useRef(null), eqStrip = useRef(null), catStrip = useRef(null)
   const onSearchFocus = useSheetKeyboard(searchRef)
   const moreRef = useAutoMore(() => setShown(s => s + 50))
-  const all = allExercises(st)
+  const all = allExercises(st).filter(e=>!['climbing','custom'].includes(e.activity_type))
   const profile = activeProfile(st)
   const inScope = e => bp === '★' ? usage[e.id] : bp === '☆' ? isFav(st, e.id) : (!bp || e.bp === bp)
   let inPart = searchExercises(bp === SAME ? sameMuscleFirst(all, likeEx) : all.filter(inScope), q)
@@ -1389,7 +1485,7 @@ function ExercisePicker({ onPick, title, close, like }) {
       {eqOpts.map(x => <button key={x} className={'chip' + (eqOn === x ? ' on' : '')} onClick={() => { setEq(x); setShown(50) }}>{t(x)}</button>)}
     </div>}
     <div className={'list' + (st.exerciseView === 'cards' ? ' ex-grid' : '')}>
-      {!special && <div className="item ex-new" {...tappable(() => customExSheet(null, ex => onPick(ex), q.trim()))}>
+      {!special && <div className="item ex-new" {...tappable(() => customExSheet(null, ex => ['climbing','custom'].includes(ex.activity_type)?addToRoutineSheet(ex):onPick(ex), q.trim()))}>
         <div className="thumb thumb-x"><Icon name="plusCircle" /></div>
         <div className="grow"><div className="tt">{t('Create your own exercise')}</div><div className="ss">{t('name + body part, and a photo or video if you like')}</div></div><Icon name="plus" className="chev" />
       </div>}
@@ -2472,15 +2568,38 @@ function WorkoutDetail({ w: initialWorkout, close }) {
   const nameOf = e => (EXIDX[e.id] ? exerciseNameFor(EXIDX[e.id]) : (e.n || e.id))
   // Tapping an exercise opens its history (Discord 'Improvement ideas'): from one session to the
   // curve it sits on, which is the question a past workout raises most often.
+  // Each set as logged, with its arrow against the same set last time (#907, lib/set-trend.js):
+  // last time as the log stood before this workout, so an old one is never held against a later.
+  const trendsOn = setTrendOn(st)
+  const detailSets = e => {
+    const ve = e
+    const last = trendsOn ? lastTimeBefore(st, w, e) : null
+    const trends = last ? setTrendsFor(ve, { ...last, id: e.id }, { formula: formulaOf(st) }) : []
+    const unit = st.unit
+    const shown = ve.sets.map((s, j) => [s, j]).filter(([s]) => hasCompletedWork(s))
+    if (!shown.length) return e.activity?.type === 'custom' ? t('{0} observations', e.measurements?.observations?.length || 0) : e.activity?.type === 'climbing' ? t('{0} routes', e.activity.routes.length) : t('no sets')
+    return shown.map(([s, j], k) => <Fragment key={j}>
+      {k > 0 && '  ·  '}
+      <span className="wd-set">{setLabel(e.id, s, e.target, speedUnitOf(st))}{trends[j] && <span className={'settrend inline ' + (trends[j].dir > 0 ? 'up' : trends[j].dir < 0 ? 'down' : 'same')} role="img" aria-label={trendLabel(trends[j], unit)} title={trendLabel(trends[j], unit)}>{trendGlyph(trends[j])}</span>}{setNoteOf(s) && <Icon name="note" className="setnote-mark" role="img" aria-hidden="false" aria-label={t('Note: {0}', setNoteOf(s))} />}</span>
+    </Fragment>)
+  }
+  // Every set's note of an entry, numbered the way the workout numbers its rows (warm-ups apart).
+  const setNotesOf = e => (e.sets || []).map((s, i) => ({ i, s })).filter(x => setNoteOf(x.s) && hasCompletedWork(x.s)).map(({ i, s }) => {
+    const warm = isWarmupRow(s)
+    const n = e.sets.slice(0, i + 1).filter(x => isWarmupRow(x) === warm).length
+    return { i, label: warm ? t('Warm-up') + ' ' + n : t('Set {0}', s.side ? Math.ceil(n / 2) : n), note: setNoteOf(s) }
+  })
   const entryRow = (e, i) => {
     const ex = EXIDX[e.id]
     return <div key={i} className="row wd-ex" style={{ alignItems: 'flex-start' }} {...tappable(() => exerciseHistorySheet(e.id))}>
       {ex && <Thumb ex={ex} />}
       <div className="grow"><div className={`tt ${exerciseNameClass(ex)}`} style={{ fontWeight: 600 }}>{nameOf(e)} {w.prs && w.prs.includes(e.id) && <span className="pr"><Icon name="trophy" />PR</span>}</div>
-        <div className="ss">{e.sets.filter(hasCompletedWork).map(s => setLabel(e.id, s, e.target, speedUnitOf(st))).join('  ·  ') || t('no sets')}</div>
+        <div className="ss">{detailSets(e)}</div>
         {e.note && <div className="small dim" style={{ marginTop: 3 }}>
           {e.notePin && <Icon name="pin" style={{ fontSize: 12, marginInlineEnd: 4, verticalAlign: '-1px', color: 'var(--yellow)' }} />}{e.note}
-        </div>}</div>
+        </div>}
+        {/* Each set's own note (lib/set-notes.js), under the sets: "Set 2: grip slipped". */}
+        {setNotesOf(e).map(n => <div key={n.i} className="small dim setnote-hist"><Icon name="note" />{n.label}: {n.note}</div>)}</div>
       <Icon name="chevronRight" className="chev" style={{ alignSelf: 'center' }} />
     </div>
   }
@@ -2542,6 +2661,8 @@ function WorkoutDetail({ w: initialWorkout, close }) {
     {/* Progress photos and form-check videos: added and removed right here, on the saved record. */}
     <WorkoutMediaSection w={w} />
     <HeartRateSection w={w} />
+    <StructuredActivities w={w}/>
+    {w.entries.some(e=>['climbing','custom'].includes(e.activity?.type))&&<p className="small muted">{t('Edit activity measurements in Activity details. Record a new outing with Log activity.')}</p>}
     <div className="small muted" style={{ margin: '4px 0 6px' }}>{t('Session note')}</div>
     <textarea ref={noteRef} className="input" rows={2} maxLength={NOTE_MAX} value={note}
       placeholder={t('How the session went as a whole.')}
@@ -2550,7 +2671,7 @@ function WorkoutDetail({ w: initialWorkout, close }) {
     {st.active && <p className="small muted">{t('Finish the current workout first.')}</p>}
     {/* The editor starts from the record as it is, so a note typed here goes in first — the same
         flush the date row does, and the unmount hook then has nothing left to write over it. */}
-    <Button icon="pencil" disabled={!!st.active} onClick={() => {
+    <Button icon="pencil" disabled={!!st.active||w.entries.some(e=>['climbing','custom'].includes(e.activity?.type))} onClick={() => {
       saveNote()
       initial.current = latest.current.trim().slice(0, NOTE_MAX)
       try { update(state => { editCompletedSession(state, w) }); closeThenNav(close, '/workout') }
@@ -2559,7 +2680,7 @@ function WorkoutDetail({ w: initialWorkout, close }) {
     <div style={{ height: 8 }} />
     {/* The same exercises again, today, as a new session (#58): the rows read what was logged
         in this workout. The record itself stays as it is. */}
-    <Button icon="reset" disabled={!!st.active} style={{ marginBottom: 8 }} onClick={() => {
+    <Button icon="reset" disabled={!!st.active||w.entries.some(e=>['climbing','custom'].includes(e.activity?.type))} style={{ marginBottom: 8 }} onClick={() => {
       saveNote()
       initial.current = latest.current.trim().slice(0, NOTE_MAX)
       repeatWorkout(w, close)
@@ -2576,7 +2697,7 @@ function WorkoutDetail({ w: initialWorkout, close }) {
       initial.current = latest.current.trim().slice(0, NOTE_MAX)
       workoutDurationSheet(w, close)
     }}>{t('Change duration')}</Button>
-    <Button icon="plus" onClick={() => confirmSheet({
+    <Button icon="plus" disabled={w.entries.some(e=>['climbing','custom'].includes(e.activity?.type))} onClick={() => confirmSheet({
       title: t('Save as routine?'),
       message: t('Create an independent routine from these exercise targets. Your workout history is kept.'),
       confirmText: t('Save'),
@@ -3050,39 +3171,41 @@ function ExerciseNote({ entryIdx, close }) {
 }
 export const exerciseNoteSheet = entryIdx => ui().openSheet(close => <ExerciseNote entryIdx={entryIdx} close={close} />)
 
-function SetNote({ entryIdx, setIdx, close }) {
+// A note on one set (lib/set-notes.js): the set menu's Note, or a tap on the note under the row.
+// Saved on the row, so it goes with the workout when it is finished, and with the set when the
+// set is removed.
+function SetNote({ entryIdx, setIdx, title, close }) {
   const noteRef = useRef(null)
   const onNoteFocus = useSheetKeyboard(noteRef)
   const row = useStore(s => s.S.active?.entries?.[entryIdx]?.sets?.[setIdx])
   const update = useStore(s => s.update)
-  const [note, setNote] = useState(row?.note || '')
+  const [had] = useState(() => setNoteOf(row))
+  const [note, setNote] = useState(had)
 
   useEffect(() => { if (!row) close() }, [!row])
   if (!row) return null
 
-  const save = () => {
-    const text = note.trim().slice(0, NOTE_MAX)
+  const save = text => {
     update(s => {
-      const set = s.active?.entries?.[entryIdx]?.sets?.[setIdx]
-      if (!set) return
-      if (text) set.note = text
-      else delete set.note
+      const rows = s.active?.entries?.[entryIdx]?.sets
+      if (rows?.[setIdx]) rows[setIdx] = withSetNote(rows[setIdx], text)
     }, true)
     close()
   }
 
   return <>
-    <h3>{t('Set note')}</h3>
-    <textarea ref={noteRef} className="input" rows={4} maxLength={NOTE_MAX} value={note}
-      placeholder={t('Anything specific to remember about this set.')}
+    <h3>{title || t('Set note')}</h3>
+    <textarea ref={noteRef} className="input" rows={2} maxLength={SET_NOTE_MAX} value={note}
+      placeholder={t('Grip slipped, a little twinge, felt easy…')} aria-label={t('Set note')}
       onFocus={onNoteFocus} onChange={event => setNote(event.target.value)} />
     <div style={{ height: 18 }} />
-    <Button variant="primary" onClick={save}>{t('Save')}</Button>
+    <Button variant="primary" onClick={() => save(note)}>{t('Save')}</Button>
+    {had && <><div style={{ height: 8 }} /><Button variant="ghost" className="dim" icon="trash" onClick={() => save('')}>{t('Remove note')}</Button></>}
   </>
 }
 
-export const setNoteSheet = (entryIdx, setIdx) =>
-  ui().openSheet(close => <SetNote entryIdx={entryIdx} setIdx={setIdx} close={close} />)
+export const setNoteSheet = (entryIdx, setIdx, title) =>
+  ui().openSheet(close => <SetNote entryIdx={entryIdx} setIdx={setIdx} title={title} close={close} />)
 
 /* The session note: how the whole workout went, as opposed to how one exercise went. It lives
    on the active session, so buildCompletedWorkout carries it onto the finished workout and it

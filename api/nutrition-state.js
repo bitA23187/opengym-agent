@@ -3,7 +3,7 @@
 export function preserveNutritionState(current,incoming) {
   if(Number(incoming.resetAt||0)>Number(current?.resetAt||0))return false;
   let changed=false;
-  for(const field of ['nutritionEntries','nutritionDays']) {
+  for(const field of ['nutritionEntries','nutritionDays','foods']) {
     const old=current?.[field];if(!old||typeof old!=='object'||Array.isArray(old))continue;
     const supplied=incoming[field],next=supplied&&typeof supplied==='object'&&!Array.isArray(supplied)?{...supplied}:{};
     for(const [id,entry] of Object.entries(old)) {

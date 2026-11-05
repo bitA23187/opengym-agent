@@ -1,7 +1,5 @@
 # openGym documentation
 
-**本扩展部署入口：[给 AI Agent 的部署与修改指南](AGENT_DEPLOYMENT.md)**。上游自托管文档用于网络配置参考，扩展安装命令以此入口为准。
-
 Pick the part that matches what you're doing. If you just have a question, try the
 [FAQ](FAQ.md) first.
 
@@ -43,11 +41,12 @@ All settings live in `.env`; [`.env.example`](../.env.example) explains each one
 
 ## Working on the code
 
+Current custom release: [1.4.4 and Plugin 0.9.0](UPSTREAM_1_4_4_INTEGRATION.md).
+
 | Guide | Read it when |
 |---|---|
 | [Contributing](../CONTRIBUTING.md) | Before your first pull request: setup, guidelines, what CI checks |
 | [CLAUDE.md](../CLAUDE.md) | You want the architecture in one page (written for Claude Code, useful for people too) |
-| [Sharing and privacy](SHARING.md) | Share a fixed source version and maintain the sanitized repository |
 | [Deployment and maintenance](OPERATIONS.md) | Build, validate, deploy and understand local-only evidence |
 | [HTTP API](API.md) | You're touching routes; the OpenAPI spec is the source of truth |
 | [Roadmap](../ROADMAP.md) | You want to know what's planned and where your idea fits |

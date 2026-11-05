@@ -4,6 +4,8 @@ export class HeartRateError extends Error {
 }
 export const workoutKey = w => w.id != null ? String(w.id) : `${w.d}|${w.start}`
 export const timedWorkout = w => Number.isFinite(w?.start) && Number.isFinite(w?.end) && w.end > w.start
+const RECENT_WORKOUT_MS = 60 * 60 * 1000
+
 export function appleWorkoutWindow(body, workouts) {
   const fields = ['apple_workout_id', 'started_at', 'ended_at']
   if (!fields.some(k => body[k] != null)) return null
@@ -24,6 +26,19 @@ export function appleWorkoutWindow(body, workouts) {
   }
   const unique = [...new Map(matching.map(w => [w.appleWorkoutId + ':' + w.start + ':' + w.end, w])).values()].sort((a, b) => a.start - b.start)
   if (!unique.length) throw new HeartRateError('workout_date_mismatch', '列表中没有与所选 OpenGym 日期相同的 Apple 训练。')
+  if (body.batch === true || body.batch === 'true') {
+    const useSaveTime = !Number.isFinite(w.start) && !Number.isFinite(w.end) && Number.isFinite(w.pluginSavedAt)
+    const candidates = unique.filter(session => {
+      if (timedWorkout(w)) return session.start < w.end && session.end > w.start
+      if (Number.isFinite(w.start) && unique.length === 1) return session.start <= w.start && session.end > w.start
+      // A session still in progress at save time blocks a competing recent match.
+      if (useSaveTime) return session.start <= w.pluginSavedAt && session.end >= w.pluginSavedAt - RECENT_WORKOUT_MS
+      return true
+    })
+    if (candidates.length === 1 && (!useSaveTime || candidates[0].end <= w.pluginSavedAt)) return candidates[0]
+    const code = candidates.length > 1 ? 'ambiguous_apple_workout' : 'no_matching_apple_workout'
+    throw new HeartRateError(code, '无法唯一匹配 Apple 训练。')
+  }
   if (unique.length === 1) return unique[0]
   return { start: Math.min(...unique.map(w => w.start)), end: Math.max(...unique.map(w => w.end)), appleWorkoutId: JSON.stringify(unique.map(w => w.appleWorkoutId)), sessions: unique, source: 'apple-health-workouts' }
 

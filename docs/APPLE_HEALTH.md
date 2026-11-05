@@ -1,5 +1,3 @@
-> 分享版本不包含原维护者签名的快捷指令。以下下载地址均是待替换的示例；请自行生成和签名，或使用原生 HealthKit。见 [Agent 部署指南](AGENT_DEPLOYMENT.md)。
-
 # Apple 健康心率同步（网页 MVP）
 
 > 当前状态：v4 在用户 iPhone 上仍停留在“结束重复”，睡眠同步尚未确认修复。
@@ -118,7 +116,7 @@ API 响应 `ok: true` 且 `storedWorkouts: 1` 表示已保存。日常版成功�
 
 第一次安装 `artifacts/shortcuts/v5/OpenGym 一键同步心率.shortcut`，在顶部填入原有完整 `Bearer ogh_…`，无需轮换凭证。单次训练快捷指令继续保留，可手动补齐已有记录中的迟到样本。一键模式只补没有样本的记录，不判断现有记录是否完整。
 
-同日多条 OpenGym 记录无法仅凭日期可靠地对应 Apple 训练，因此不加入自动队列；首页显示数量，用户应在详情中核对对应关系。一天仅一条 OpenGym 记录时，沿用单次同步规则，关联当天全部 Apple 训练，以时段并集过滤心率。首次授权及 iPhone/PWA 打开快捷指令的系统确认仍可能出现；这不是后台 HealthKit 同步。
+同日多条 OpenGym 记录无法仅凭日期可靠地对应 Apple 训练，因此不加入自动队列；首页显示数量，用户应在详情中核对对应关系。一天仅一条 OpenGym 记录时，如果 Apple 有多场训练，只自动关联与 OpenGym 起止时间唯一重叠的一场。缺少完整时间或重叠多场时跳过。首次授权及 iPhone/PWA 打开快捷指令的系统确认仍可能出现；这不是后台 HealthKit 同步。
 
 新增接口：`GET /api/heart-rate/pending` 供网页登录态使用，`POST /api/heart-rate/pending` 供专用凭证使用。仅返回 `workouts: [{date, workout_id}]`、`pending`、`skippedAmbiguous`，不暴露动作、体重或已有健康数据。既有凭证增加此最小清单能力，撤销方式与有效期不变。`POST /api/heart-rate/import` 传入 `batch: true`（或文本 `"true"`）启用仅补缺失规则；成功响应中的 `skipped` 为正常跳过原因，格式及凭证错误仍为失败。
 

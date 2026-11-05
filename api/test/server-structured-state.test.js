@@ -1,0 +1,22 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import {spawn} from 'node:child_process';
+import {boundPort} from './helpers.mjs';
+test('real native data PUT: old app cannot erase structured records; capable app edits and reads the same data',async t=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'opengym-structured-')),uid='fixture',secret='synthetic-structured-secret';
+ const initial={unit:'kg',_rev:1,_wid:'first',routines:[],week:{},dayPlan:{},bodyweight:[],workouts:[{id:'climb',d:'2026-10-20',entries:[{id:'custom',sets:[],target:{mode:'climbing'},activity:{type:'climbing',routes:[{route_id:'one',attempts:2,completed:true}]}}]}],nutritionEntries:{meal:{date:'2026-10-20',meal:'Snack',calories:100,items:[{item_id:'food',quantity:100}]}},foods:{food:{name:'Food',_ts:1}}};
+ fs.writeFileSync(path.join(dir,'secret'),secret);fs.writeFileSync(path.join(dir,'db.json'),JSON.stringify({users:[{id:uid,name:'Fixture'}],creds:[],subs:[],invites:[]}));fs.writeFileSync(path.join(dir,'state-'+uid+'.json'),JSON.stringify(initial));
+ const child=spawn(process.execPath,[new URL('../server.js',import.meta.url).pathname],{env:{...process.env,PORT:'0',DATA_DIR:dir,ORIGIN:'https://gym.test',RP_ID:'gym.test',PLUGIN_ENABLED:'0',COACH_DISABLED:'1',FIRST_USER_ADMIN:'0'},stdio:['ignore','pipe','pipe']});let output='';child.stdout.on('data',d=>output+=d);child.stderr.on('data',d=>output+=d);
+ t.after(async()=>{child.kill();await new Promise(r=>child.exitCode!==null?r():child.once('exit',r));fs.rmSync(dir,{recursive:true,force:true})});
+ const base='http://127.0.0.1:'+await boundPort(child,()=>output),value=`${uid}:${Date.now()+86400000}:0`,cookie='gymsid='+value+'.'+crypto.createHmac('sha256',secret).update(value).digest('base64url'),headers={cookie,origin:'https://gym.test','content-type':'application/json'};
+ const read=async()=>{const r=await fetch(base+'/api/data',{headers});assert.equal(r.status,200);return r.json()};
+ const original=await read(),old=structuredClone(original.state);delete old.workouts[0].entries[0].activity;
+ const put=(state,capabilities)=>fetch(base+'/api/data',{method:'PUT',headers,body:JSON.stringify({state,baseRev:original.rev,baseWid:original.state._wid,stamped:true,capabilities})});
+ const blocked=await put(old);assert.equal(blocked.status,426);assert.equal((await blocked.json()).code,'client_update_required');assert.equal((await read()).state.workouts[0].entries[0].activity.routes[0].attempts,2);
+ const next=structuredClone(original.state);next.workouts[0].entries[0].activity.routes[0].attempts=3;
+ assert.equal((await put(next,['structured_training_v1','food_items_v1'])).status,200);assert.equal((await read()).state.workouts[0].entries[0].activity.routes[0].attempts,3);
+});

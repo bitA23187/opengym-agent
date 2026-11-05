@@ -1,9 +1,9 @@
 // Read-only deployment smoke test; never authorizes or writes private data.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const pluginVersion=JSON.parse(readFileSync(new URL('../api/plugin/package.json',import.meta.url),'utf8')).version;
 const base=process.argv[2];
-if (!base) throw new Error('Usage: node scripts/verify-private-plugin.mjs https://YOUR-OWN-HOST');
-const parsedBase = new URL(base);
-if (!['http:', 'https:'].includes(parsedBase.protocol) || parsedBase.username || parsedBase.password || parsedBase.pathname !== '/' || parsedBase.search || parsedBase.hash) throw new Error('Provide an HTTP(S) origin without credentials, path, query or fragment');
+if (!base) throw new Error('Usage: node scripts/verify-private-plugin.mjs https://your-server.example');
 const endpoint=base+'/api/plugin/mcp';
 // All requests below are public reads or denied private calls. Bound transient proxy
 // failures, and avoid reusing a proxy socket closed between JSON-RPC requests.
@@ -23,8 +23,11 @@ async function rpc(method,params,token) {
  const r=await publicFetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json, text/event-stream',...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify({jsonrpc:'2.0',id:++id,method,params})});return {status:r.status,body:await r.json()};
 }
 const init=await rpc('initialize',{protocolVersion:'2025-03-26',capabilities:{},clientInfo:{name:'opengym-public-smoke',version:'1'}});assert.equal(init.status,200);assert.equal(init.body.result.serverInfo.name,'opengym-private-training');
-const list=await rpc('tools/list',{});assert.equal(list.body.result.tools.length,27);
-assert.deepEqual(list.body.result.tools.map(t=>t.name).sort(),['get_nutrition','preview_nutrition_update','save_nutrition_update','get_daily_health','list_custom_exercises','preview_custom_exercise','save_custom_exercise','get_training_notes','get_training_versions','get_exercise_details','get_body_metrics','preview_body_update','save_body_update','get_profile','get_current_plan','get_plan_versions','get_training_session','list_training_history','get_training_workout','get_training_summary','preview_plan','preview_plan_edit','preview_training_update','save_plan','save_plan_edit','save_training_update','search_exercises'].sort());
+const list=await rpc('tools/list',{});assert.equal(list.body.result.tools.length,29);
+for(const name of ['preview_plan','preview_plan_edit'])assert.ok(list.body.result.tools.find(t=>t.name===name).inputSchema.properties.review_questions);
+for(const name of ['save_plan','save_plan_edit'])assert.match(list.body.result.tools.find(t=>t.name===name).inputSchema.properties.confirmed.description,/authorization.requires_user_confirmation=false/);
+assert.match(list.body.result.tools.find(t=>t.name==='preview_nutrition_update').description,/mixed batches/);
+assert.deepEqual(list.body.result.tools.map(t=>t.name).sort(),['get_training_log','list_foods','get_nutrition','preview_nutrition_update','save_nutrition_update','get_daily_health','list_custom_exercises','preview_custom_exercise','save_custom_exercise','get_training_notes','get_training_versions','get_exercise_details','get_body_metrics','preview_body_update','save_body_update','get_profile','get_current_plan','get_plan_versions','get_training_session','list_training_history','get_training_workout','get_training_summary','preview_plan','preview_plan_edit','preview_training_update','save_plan','save_plan_edit','save_training_update','search_exercises'].sort());
 assert.ok(meta.scopes_supported.includes('training:read'));assert.ok(meta.scopes_supported.includes('body:read'));assert.ok(meta.scopes_supported.includes('body:write'));
 for(const name of ['preview_plan','preview_plan_edit','preview_training_update','preview_body_update','preview_custom_exercise'])assert.equal(list.body.result.tools.find(t=>t.name===name).annotations.readOnlyHint,false);
 assert.ok(trainingDescriptorFields());
@@ -33,12 +36,13 @@ for(const [name,scopes] of [['get_nutrition',['nutrition:read']],['preview_nutri
 
 function trainingDescriptorFields(){const p=list.body.result.tools.find(t=>t.name==='preview_training_update').inputSchema.properties;return p.context_notes&&p.workout_patch&&p.restore_version_id;}
 
-assert.equal(init.body.result.serverInfo.version,'0.7.0');
+assert.equal(init.body.result.serverInfo.version,pluginVersion);
 assert.ok(!list.body.result.tools.find(t=>t.name==='preview_plan_edit').inputSchema.properties.session_adjustment);
 const training=list.body.result.tools.find(t=>t.name==='preview_training_update');
 assert.ok(training.inputSchema.properties.timezone);
 assert.ok(!training.inputSchema.required.includes('timezone'));
-assert.ok(training.inputSchema.properties.workout.properties.exercises.items.properties.sets.items.properties.drops);
+const deref=v=>v?.$ref?v.$ref.slice(2).split('/').reduce((o,k)=>o[k],training.inputSchema):v;
+assert.ok(deref(deref(deref(training.inputSchema.properties.workout).properties.exercises.items).properties.sets.items).properties.drops);
 const save=list.body.result.tools.find(t=>t.name==='save_plan');assert.equal(save.annotations.readOnlyHint,false);assert.ok(save.inputSchema.required.includes('confirmation_summary'));
 const profile=list.body.result.tools.find(t=>t.name==='get_profile');
 assert.equal(profile._meta['openai/profile'],true);assert.equal(profile.annotations.readOnlyHint,true);

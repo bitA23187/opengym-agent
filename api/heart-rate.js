@@ -46,7 +46,7 @@ export function createHeartRate({ dataDir, readSession, readBody, json, readStat
     }
   }
   const revoke = credentials.revoke
-  const removeUser = uid => { revoke(uid); fs.rmSync(userDir(uid), { recursive: true, force: true }) }
+  const removeUser = uid => { credentials.removeUser(uid); fs.rmSync(userDir(uid), { recursive: true, force: true }) }
   const prune = (uid, workouts) => {
     const dir = path.join(userDir(uid), 'workouts')
     if (!fs.existsSync(dir)) return
@@ -119,7 +119,11 @@ export function createHeartRate({ dataDir, readSession, readBody, json, readStat
       const samples = parseHeartRate(body)
       let window
       try { window = appleWorkoutWindow(body, state.workouts) }
-      catch (e) { if (batch && e.code === 'workout_date_mismatch') return skip('no_apple_workout'); throw e }
+      catch (e) {
+        if (batch && e.code === 'ambiguous_apple_workout') return skip(e.code)
+        if (batch && ['workout_date_mismatch', 'no_matching_apple_workout'].includes(e.code)) return skip('no_apple_workout')
+        throw e
+      }
       const candidates = state.workouts.filter(Boolean).map(w => window && workoutKey(w) === target ? { ...w, start: window.start, end: window.end } : w)
       const insideApple = s => !window || (window.sessions || [window]).some(w => s.at >= w.start && s.at <= w.end)
       const eligible = samples.filter(insideApple)

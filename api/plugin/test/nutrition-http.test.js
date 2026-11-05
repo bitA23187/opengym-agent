@@ -31,6 +31,15 @@ test('HTTP scopes separate nutrition and health from training; confirmed saves a
  assert.equal((await call('save_nutrition_update',gs,tokens.read)).isError,true);
  assert.ok(!(await call('save_nutrition_update',gs,tokens.write)).isError);
  assert.equal(JSON.parse((await call('get_nutrition',range,tokens.read)).content[0].text).goals.protein,130);
+ const foodPreview=await call('preview_nutrition_update',{timezone:'Asia/Taipei',foods:[{operation:'upsert',id:'milk',food:{name:'Milk',basis:{quantity:100,unit:'ml'},nutrients:{calories:35,protein:3.5},source:'Label'}}]},tokens.write);
+ assert.ok(!foodPreview.isError,JSON.stringify(foodPreview));const fd=JSON.parse(foodPreview.content[0].text);
+ assert.ok(!(await call('save_nutrition_update',{draft_id:fd.draft_id,confirmed:true,confirmation_summary:fd.confirmation_summary},tokens.write)).isError);
+ assert.equal(JSON.parse((await call('list_foods',{},tokens.read)).content[0].text).foods[0].id,'milk');
+ assert.equal((await call('list_foods',{},tokens.training)).isError,true);
+ const itemPreview=await call('preview_nutrition_update',{timezone:'Asia/Taipei',entries:[{date:'2026-10-23',meal:'Snack',source:'Label',eaten_at:'2026-10-24T00:30:00+08:00',items:[{item_id:'milk-item',food_id:'milk',quantity:250,unit:'ml'}]}]},tokens.write);
+ assert.ok(!itemPreview.isError,JSON.stringify(itemPreview));const md=JSON.parse(itemPreview.content[0].text);
+ assert.ok(!(await call('save_nutrition_update',{draft_id:md.draft_id,confirmed:true,confirmation_summary:md.confirmation_summary},tokens.write)).isError);
+ const meals=JSON.parse((await call('get_nutrition',range,tokens.read)).content[0].text).days[0].meals;assert.equal(meals.find(m=>m.items).protein,8.8);
  assert.equal((await call('get_daily_health',{...range,timezone:'Asia/Taipei'},tokens.write)).isError,true);
  assert.ok(!(await call('get_daily_health',{...range,timezone:'Asia/Taipei'},tokens.health)).isError);assert.equal(healthUser,user.id);
 });

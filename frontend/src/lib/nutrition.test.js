@@ -1,5 +1,5 @@
 import { describe,it,expect } from 'vitest'
-import { putMeal,removeMeal,nutritionDay,mealEnergy,cleanMeal } from './nutrition.js'
+import { putMeal,removeMeal,nutritionDay,mealEnergy,cleanMeal,nutritionToday,shiftNutritionDate } from './nutrition.js'
 import { mergeStates,stampChange } from './sync-merge.js'
 const meal={date:'2026-10-23',meal:'Lunch',protein:35,carbs:50,fat:4,alcohol:0,source:'GPT estimate'}
 const base=()=>({unit:'kg',workouts:[],routines:[],bodyweight:[],nutritionEntries:{},nutritionDays:{},_ts:1})
@@ -72,3 +72,30 @@ it('averages include known sums without turning unknown entries into zero',async
  expect(result.days.at(-1).totals.calories.known).toBe(false);
  expect(s.nutritionDays).toEqual({});
 });
+
+
+describe('nutrition day boundary',()=>{
+ it.each([
+  [new Date(2026,10,5,0,0),'2026-11-04'],
+  [new Date(2026,10,5,4,59,59,999),'2026-11-04'],
+  [new Date(2026,10,5,5,0),'2026-11-05'],
+  [new Date(2026,10,5,23,59),'2026-11-05'],
+  [new Date(2026,0,1,1),'2025-12-31'],
+  [new Date(2024,2,1,4),'2024-02-29'],
+  [new Date(2026,10,1,4,59),'2026-10-31'],
+ ])('uses the local 05:00 boundary for %s', (now,expected)=>{
+  const original=now.getTime()
+  expect(nutritionToday(now)).toBe(expected)
+  expect(now.getTime()).toBe(original)
+ })
+ it('steps across month, leap-year and year boundaries',()=>{
+  expect(shiftNutritionDate('2024-03-01',-1)).toBe('2024-02-29')
+  expect(shiftNutritionDate('2026-01-01',-1)).toBe('2025-12-31')
+  expect(shiftNutritionDate('2026-10-31',1)).toBe('2026-11-01')
+ })
+ it('keeps explicit log dates and actual timestamps intact',()=>{
+  const entry=cleanMeal({...meal,date:'2026-11-04',time:'01:00',eaten_at:'2026-11-05T01:00:00+08:00'})
+  expect(entry.date).toBe('2026-11-04');expect(entry.log_date).toBe('2026-11-04')
+  expect(entry.eaten_at).toBe('2026-11-05T01:00:00+08:00')
+ })
+})

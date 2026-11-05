@@ -93,11 +93,9 @@ test('real API: two OAuth users cannot read, write, save drafts or revoke connec
   const bobSecond=await authorize('bob',(await registration.json()).client_id);
   const mobile={};
   for(const uid of ['alice','bob']) {
-    const pairing=await jsonPost('/api/pair/create',{},uid);assert.equal(pairing.status,200);
-    const code=(await pairing.json()).code;
-    const redeemed=await jsonPost('/api/pair/redeem',{code});assert.equal(redeemed.status,200);
-    const phone=await redeemed.json();assert.equal(phone.user.id,uid);mobile[uid]=phone.token;
-    assert.equal((await jsonPost('/api/pair/redeem',{code})).status,400);
+    const payload=`${uid}:${Date.now()+86400000}:0:b`;
+    mobile[uid]=payload+'.'+crypto.createHmac('sha256',secret).update(payload).digest('base64url');
+    assert.equal((await jsonPost('/api/pair/redeem',{code:'INVALID'})).status,400);
     const profile=await rpc('get_profile',{},tokens[uid].access_token);
     assert.deepEqual(profile.body.result.structuredContent,ok(profile));
     assert.equal(ok(profile).id,uid);

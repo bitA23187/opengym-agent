@@ -15,6 +15,6 @@ test('optional Plugin boots inside the real API without changing existing endpoi
  const old=await fetch(base+'/api/data');assert.equal(old.status,401);
  const metadata=await fetch(base+'/.well-known/oauth-authorization-server');assert.equal(metadata.status,200);assert.equal((await metadata.json()).issuer,'https://gym.test');
  const rpc=await fetch(base+'/api/plugin/mcp',{method:'POST',headers:{'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/list',params:{}})});
- assert.equal(rpc.status,200);assert.equal((await rpc.json()).result.tools.length,27);
+ assert.equal(rpc.status,200);assert.equal((await rpc.json()).result.tools.length,29);
  assert.ok(!fs.readdirSync(dir).some(n=>n.startsWith('state-')));
 });

@@ -1,4 +1,60 @@
-# OpenGym Plugin v0.7.0
+# OpenGym Plugin v0.9.0
+
+## 2026-11-05：应用 1.4.4 与 Plugin 0.9.0
+
+体重读写和目标体重从 Plugin 移除，在 App 手动记录；已有数据保留。身体测量工具仅处理围度等测量，返回值不含体重，输入拒绝 weight/target_weight。保留现有权限、账号和连接。新增逐组备注的导入、增量记录、读取和局部纠错。以下旧章节中的体重操作为历史能力，已由本节取代。完整变更与验证见 [集成说明](UPSTREAM_1_4_4_INTEGRATION.md)。
+
+## 饮食与食品库衔接，2026-11-05（已部署）
+
+记录实际摄入前先读取逻辑饮食日，再查询食品库，按名称、品牌、状态、基准和营养标签复用。默认将具有完整可靠标签（基准、kcal、蛋白质、碳水、脂肪）的新食品自动入库，不需要额外授权、偏好设置或逐次确认入库意愿。准确匹配的重复食品直接复用；如果用户只说“吐司面包”，库中却存在多个品牌或版本且无法根据已提供标签唯一匹配，先询问品牌或版本，不任意选择、不平均营养、不覆盖已有标签。标签冲突、基准不明等事实问题仍需澄清。
+
+估算食品默认只作为 `items[].food_snapshot` 记录，不自动生成通用食品；不能确认数量时保留餐次描述和未知值，不编造精确克数。已有餐次先读取并保留，不能为了新建食品而覆盖。标签 kJ 除以 4.184 换算 kcal，原始标签保存在 `source_reference`；可食重量、生熟状态及酒精能量保留。
+
+新建食品时显式提供 `foods[].id`，同批 `entries[].items[].food_id` 使用该 ID。食品和餐次沿用现有一次状态写入、修订检查和草稿重试机制。预览新增 `food_library_summary`，报告唯一复用食品数、新建标签／估算食品数、临时估算／标签明细数，并纳入确认摘要。
+
+服务端对新建食品检查同名、同品牌、同状态、同基准单位的已有档案（包括归档和同批新增）；名称和品牌忽略兼容字符、大小写及空白差异，营养素按单位量比较。同来源且营养相同则拒绝重复建档并返回可复用 ID；同身份标签不同则要求区分品牌或版本。不做模糊匹配或未经确认的自动合并，已有 ID 的显式编辑仍沿用完整更新规则。
+
+完整标签自动入库是插件默认工作流，跨对话一致，不新增 `food_library_auto_create` 设置。品牌等语义歧义由 Agent 查询食品库后澄清；服务端额外拦截新建标签食品时与同名品牌缺失档案之间的歧义。自动入库仍遵守现有保存授权和权限，不绕过宿主审批。已部署至现有 MCP 地址，公网初始化指引和工具说明已核对；宿主刷新后的实际 Agent 行为仍待新会话验收。
+
+## All-account direct saves, 2026-10-28 (v0.8.2)
+
+This supersedes the account-only policy below. With PLUGIN_DIRECT_SAVE=1, all
+accounts use direct saves for clear user-requested training arrangements,
+training records, actual nutrition/goals and food-library upserts/restores.
+Explicit requests to remember technique/grip notes also authorize standing
+exercise note updates, including in the same batch as a workout. An incidental
+symptom stays in the current workout rather than automatically becoming lasting
+context. Context promotion, destructive removals and undo keep confirmation.
+
+The exact preview returns authorization.source=deployment_policy and
+requires_user_confirmation=false for eligible changes. Unresolved review_questions
+block saves; ordinary training drafts now persist those questions as well as
+returning them. Ambiguity/errors/outliers require focused clarification. This
+policy grants no new scopes, access to other accounts or permission to invent data.
+Set PLUGIN_DIRECT_SAVE=0 to fall back to the individual account allowlists.
+
+
+## Direct-save rules, 2026-10-28 (v0.8.1)
+
+This section supersedes older blanket preview/confirm instructions below.
+For accounts explicitly listed in PLUGIN_NUTRITION_AUTO_SAVE_USER_IDS, clear
+requested food-library upserts/restores now share direct-save authorization with
+actual meals and requested goals, including mixed batches.
+PLUGIN_PLAN_AUTO_SAVE_USER_IDS separately authorizes clear requested templates,
+exercise changes and schedules. Training records keep their existing preference.
+When the exact preview returns authorization.requires_user_confirmation=false,
+validate internally and save in the same turn without another confirmation reply;
+report success only after the matching save succeeds. Advice alone is not a save request.
+
+Clarify ambiguity, suspected mistakes, outliers, unit/side or raw/cooked conflicts
+first. Plans now accept review_questions; nonempty questions block saving on the
+server until clarified and previewed again. Empty questions do not prove clarity.
+Other accounts retain confirmation, as do nutrition deletion/food archive/delete,
+training deletion/undo, plan undo and long-term profile/context changes. Exact
+summaries, scopes, account/grant binding, revision checks, idempotency and host
+approval remain in force. Cached ChatGPT tool descriptions need a refresh and
+fresh-chat acceptance; server tests do not prove host behavior.
+
 
 新增：饮食读取/预览/保存、日常健康趋势读取，共 27 个工具。已于 2026-10-24 02:23:41（Asia/Taipei）部署；新权限需要重新连接授权，说明与验收边界见 [饮食记录与日常健康同步](NUTRITION_DAILY_HEALTH.md)。以下保留 v0.6.0 部署历史。
 
@@ -101,3 +157,12 @@ Plugin 纠错复用上游训练量、PR、最高重量计算函数；服务端�
 2026-10-21：Plugin 的 46 项测试通过，覆盖自定义动作生命周期、创建后计时补录、双账号 OAuth 隔离、权限不足、精确确认、草稿串用/过期、并发修订、历史解析和同步删除标记。相关动作库与自定义动作表单测试通过，网页生产构建通过。
 
 扩大回归时，前端全量出现 11 项失败，API 全量出现 10 项失败；这些失败均在保留先前工作区改动、撤回本次共享前端修改的隔离副本中复现，涉及既有登录/翻译/代理、日期时区夹具和 Coach 测试。本次不修改这些无关行为。上述结果不代表已部署线上，也不代表在 ChatGPT 客户端或实体 Android 手机上完成了新工具验收。
+
+## Free training and scheduled arrangements
+
+An `unconfigured` schedule is a valid choice. Templates remain available without
+being assigned to dates. Questions about an existing schedule should report that
+there is no preset arrangement. Questions about what to train should use recent
+history, active training context, goals and available recovery observations to
+recommend a session. Schedule setup is optional and is never a prerequisite.
+Recommendations do not authorize schedule edits or create completed workouts.

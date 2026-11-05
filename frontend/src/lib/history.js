@@ -1,3 +1,4 @@
+import { isNonLiftingActivity,isPartialSet } from './activity-data.js'
 // Pure helpers over the state object S (ported 1:1 from the vanilla app).
 import { syncSupersetMeta } from './superset-meta.js'
 import { todayISO, isoOf, weekKey, weekStartOf, fmtNum } from './format.js'
@@ -50,7 +51,7 @@ export const workoutAt = w => {
 // plan file is read unchanged and nothing needs migrating.
 export function modeOf(cfg) {
   const m = cfg && cfg.mode
-  if (m === 'reps' || m === 'time' || m === 'cardio') return m
+  if (m === 'reps' || m === 'time' || m === 'cardio' || m === 'climbing' || m === 'custom') return m
   return isCardio(cfg && cfg.id) ? 'cardio' : 'reps'
 }
 export const isTimed = cfg => modeOf(cfg) === 'time'
@@ -1160,7 +1161,7 @@ export function workSetsDone(w) {
 }
 
 const METRIC_MODES = ['reps', 'time', 'cardio']
-const completedRowsForMode = (entry, mode) => workRowsForMode(entry, mode).filter(s => hasCompletedWork(s) && !isWarmupRow(s))
+const completedRowsForMode = (entry, mode) => isNonLiftingActivity(entry)?[]:workRowsForMode(entry, mode).filter(s => hasCompletedWork(s) && !isWarmupRow(s) && !(mode==='reps'&&(isPartialSet(s)||s.sides&&[s.sides.L,s.sides.R].some(isPartialSet))))
 
 export function metricRowsForEntry(entry, mode) {
   const requested = typeof mode === 'string' ? mode.trim().toLowerCase() : ''
@@ -1206,7 +1207,7 @@ export function completedRepsOf(set = {}) {
 export function bestWeightForEntry(entry = {}) {
   const target = entry.target || entry
   const workRows = Array.isArray(entry.sets)
-    ? entry.sets.filter(s => phaseForSet(s) === 'work')
+    ? entry.sets.filter(s => phaseForSet(s)==='work'&&!isPartialSet(s)&&(!s.sides||![s.sides.L,s.sides.R].some(isPartialSet)))
     : []
   const repsRows = metricRowsForEntry(entry, 'reps')
   // Reps rows are the authoritative load metric for a mixed entry. Otherwise use every
@@ -1246,7 +1247,7 @@ export function bestWeightForEntry(entry = {}) {
   const topWeight = Number(entry.topW)
   // topW predates phase-tagged warm-ups. It remains a fallback for legacy all-work records,
   // but cannot override resolved work rows once any warm-up marker exists.
-  if (parentMode === 'reps' && !hasNonRepsWorkRow && !hasWarmupRow && Number.isFinite(topWeight)
+  if (!(entry.sets||[]).some(s=>isPartialSet(s)||s.sides&&[s.sides.L,s.sides.R].some(isPartialSet)) && parentMode === 'reps' && !hasNonRepsWorkRow && !hasWarmupRow && Number.isFinite(topWeight)
     && (best <= 0 || (assisted ? topWeight > 0 && topWeight < best : topWeight > best))) best = topWeight
   return best
 }

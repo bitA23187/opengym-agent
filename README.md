@@ -2,13 +2,15 @@
 
 **给 AI Agent 的入口：[部署与修改指南](docs/AGENT_DEPLOYMENT.md)** · [Agent 工作约定](AGENTS.md) · [维护与验证基线](docs/OPERATIONS.md) · [分享、隐私检查与版本标签](docs/SHARING.md)
 
-本仓库基于 [upstream openGym 1.4.1](https://github.com/DuarteSantos8/openGym)，包含 OAuth/MCP 训练助手、营养与日常健康、iPhone HealthKit 和独立 watchOS 同步扩展。朋友可交给自己的 Agent 部署和修改；使用自己的服务器、账号和数据。
+本仓库基于 [upstream openGym 1.4.4](https://github.com/DuarteSantos8/openGym)，包含 OAuth/MCP 训练助手、营养与日常健康、iPhone HealthKit 和独立 watchOS 同步扩展。朋友可交给自己的 Agent 部署和修改；使用自己的服务器、账号和数据。
 
-- 本仓库：`bitA23187/opengym-agent`；首次固定交付版本：`agent-v0.1.0`。
+- 本仓库：`bitA23187/opengym-agent`；当前源码版本：`agent-v1.4.4`（Plugin 0.9.0）。
 - 部署使用 **`docker-compose.agent.yml` + `agent.env.example`**，从本仓库构建扩展版。上游预构建镜像不包含完整扩展。
 - iOS/watchOS 需要自己的 Apple 签名与真机授权；不随网页部署自动启用。
 - 本仓库仅含清理后的源码，不含个人数据、私密配置、签名快捷指令、受单独许可限制的动作媒体或原维护者的部署历史。许可与媒体说明见 [NOTICE.md](NOTICE.md)。
 - 当前版本的已知测试失败与验收范围见 [维护指南](docs/OPERATIONS.md)；固定标签代表可复现的源码交付，不等同于全部功能已通过验收。
+
+版本变化见 [1.4.4 集成说明](docs/UPSTREAM_1_4_4_INTEGRATION.md)，安卓安装包见 [Releases](https://github.com/bitA23187/opengym-agent/releases)。
 
 下方保留上游项目介绍和作者署名。上游网站、发行包、捐赠及社区链接属于原项目；本扩展的安装以顶部指南为准。
 
@@ -142,7 +144,7 @@ The full list of what changed release by release is in the [changelog](CHANGELOG
 先读 [给 AI Agent 的部署指南](docs/AGENT_DEPLOYMENT.md)。仓库公开，可直接克隆：
 
 ```bash
-git clone --branch agent-v0.1.0 --depth 1 https://github.com/bitA23187/opengym-agent.git
+git clone --branch agent-v1.4.4 --depth 1 https://github.com/bitA23187/opengym-agent.git
 cd opengym-agent
 cp agent.env.example agent.env
 chmod 600 agent.env

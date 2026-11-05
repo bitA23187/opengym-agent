@@ -16,7 +16,16 @@ export function stampPluginChange(cur,next) {
 }
 // Sync metadata changes after stamping and must not invalidate a just-created version.
 const unstamp=v=>JSON.parse(JSON.stringify(v,(k,value)=>['_ts','_f','_u'].includes(k)?undefined:value));
-export const planSnapshot = s => ({unit:s.unit||'kg',routines:unstamp(s.routines||[]),week:structuredClone(s.week||{}),dayPlan:structuredClone(s.dayPlan||{})});
+export const planSnapshot = s => ({unit:s.unit||'kg',routines:unstamp(s.routines||[]),week:structuredClone(s.week||{}),dayPlan:structuredClone(s.dayPlan||{}),scheduleMode:s.scheduleMode||'week',rotation:structuredClone(s.rotation||null),queue:structuredClone(s.queue||null)});
+export function planVersionMatches(s,v) {
+  const snapshot=planSnapshot(s);
+  // Legacy versions did not cover rotation. Do not silently undo them over a live rotation.
+  if(!Object.hasOwn(v.before,'scheduleMode')) {
+    if(s.queue||s.rotation||s.scheduleMode==='rotation')return false;
+    for(const k of ['scheduleMode','rotation','queue'])delete snapshot[k];
+  }
+  return hash(JSON.stringify(snapshot))===v.after_hash;
+}
 export function recordPlanVersion(cur,next,draft) {
   const before=planSnapshot(cur),after=planSnapshot(next);
   if(JSON.stringify(before)===JSON.stringify(after))return;
@@ -49,6 +58,7 @@ export function appendPlanEdit(cur,draft) {
   next.routines=structuredClone(draft.routines);
   if(draft.weekChanged)next.week=structuredClone(draft.week);
   if(draft.dayPlanChanged)next.dayPlan=structuredClone(draft.dayPlan);
+  if(draft.scheduleChanged)for(const key of ['scheduleMode','rotation','queue'])next[key]=structuredClone(draft[key]);
   if(draft.profileChanged)next.coach={...(next.coach||{}),profile:structuredClone(draft.profile)};
   recordPlanVersion(cur,next,draft);
   stampPluginChange(cur,next);

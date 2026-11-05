@@ -2,7 +2,7 @@
 name: opengym-agent
 services:
   api:
-    image: opengym-agent-api:${OPENGYM_IMAGE_TAG:-agent-v0.1.0}
+    image: opengym-agent-api:${OPENGYM_IMAGE_TAG:-agent-v1.4.4}
     build:
       context: .
       dockerfile: deploy/agent-api.Dockerfile
@@ -25,12 +25,12 @@ services:
         max-size: "10m"
         max-file: "3"
   web:
-    image: opengym-agent-web:${OPENGYM_IMAGE_TAG:-agent-v0.1.0}
+    image: opengym-agent-web:${OPENGYM_IMAGE_TAG:-agent-v1.4.4}
     build:
       context: .
       dockerfile: deploy/agent-web.Dockerfile
       args:
-        APP_BUILD: ${OPENGYM_IMAGE_TAG:-agent-v0.1.0}
+        APP_BUILD: ${OPENGYM_IMAGE_TAG:-agent-v1.4.4}
     restart: unless-stopped
     depends_on:
       api:

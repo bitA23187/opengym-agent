@@ -1,7 +1,7 @@
 // Focused workout semantics shared by session, history, and strength views.
 // Legacy records have no explicit phase or mode, so the defaults preserve main's work/reps shape.
 
-const MODES = ['reps', 'time', 'cardio']
+const MODES = ['reps', 'time', 'cardio', 'climbing', 'custom']
 const objectOf = value => value && typeof value === 'object' && !Array.isArray(value) ? value : {}
 
 function normalizedPhase(value, fallback = 'work') {
@@ -210,6 +210,7 @@ export function completedVolumeOf(set) {
 const sideOf = value => {
   const v = objectOf(value)
   const out = { w: Number(v.w) || 0, r: Number(v.r) || 0, done: v.done === true }
+  for(const key of ['rep_segments','weight_source','value_source','distance_km','elapsed_seconds','incline_segments','set_id','note'])if(v[key]!=null)out[key]=structuredClone(v[key])
   if (v.rir != null) out.rir = v.rir
   if (v.rpe != null) out.rpe = v.rpe
   if (v.weightOrigin === WEIGHT_ORIGIN_MANUAL) out.weightOrigin = WEIGHT_ORIGIN_MANUAL

@@ -128,7 +128,10 @@ actor WatchSyncEngine {
             let earliest = await health.earliestDate()
             try check(version)
             guard var next = state else { throw WatchFailure.stopped }
-            next.earliest = earliest; next.uploaded = [:]; next.ignoredDeletions = 0; next.error = nil
+            next.earliest = earliest
+            next.uploaded = Dictionary(uniqueKeysWithValues: WatchMetric.uploads.map { ($0.rawValue, 0) })
+            next.ignoredDeletions = 0; next.error = nil
+            next.storedWorkouts = 0; next.skippedWorkouts = 0
             if next.pending == nil && next.anchors.isEmpty { next.since = max(next.since, earliest) }
             try commit(next)
             if let networkFailure {
@@ -144,6 +147,7 @@ actor WatchSyncEngine {
                 throw networkFailure
             }
             try await flush(config, version: version)
+            try await flushWorkout(config, version: version)
             for metric in WatchMetric.uploads {
                 while true {
                     try check(version)
@@ -153,6 +157,13 @@ actor WatchSyncEngine {
                     try check(version)
                     guard page.pending.metric == metric.rawValue else { throw WatchFailure.invalidHealthData }
                     var queued = current
+                    if page.sampleCount == 0 {
+                        queued.anchors[metric.rawValue] = page.pending.anchor
+                        queued.ignoredDeletions += page.ignoredDeletions
+                        try commit(queued)
+                        if page.hasMore { continue }
+                        break
+                    }
                     queued.pending = WatchQueuedPage(pending: page.pending, sampleCount: page.sampleCount, ignoredDeletions: page.ignoredDeletions)
                     // If persistence fails, never put these bytes on the network.
                     try commit(queued)
@@ -160,11 +171,55 @@ actor WatchSyncEngine {
                     if !page.hasMore { break }
                 }
             }
+            try await syncWorkouts(config, version: version)
             try check(version)
             guard var completed = state else { throw WatchFailure.stopped }
             completed.lastSuccess = Date(); completed.error = nil
             try commit(completed)
         } catch { record(error, version: version); throw error }
+    }
+
+    private func syncWorkouts(_ config: WatchConfiguration, version: Int) async throws {
+        phase = "检查训练心率…"
+        let body = try JSONSerialization.data(withJSONObject: ["expected_owner": config.owner])
+        let data = try await transport.post(config, path: "/api/heart-rate/pending", body: body)
+        try check(version)
+        struct Target: Decodable { let date: String; let workout_id: String }
+        struct Pending: Decodable { let owner: String; let workouts: [Target] }
+        let response = try JSONDecoder().decode(Pending.self, from: data)
+        guard response.owner == config.owner else { throw WatchFailure.accountMismatch }
+        for target in response.workouts.reversed() {
+            try check(version)
+            let day = try HealthSyncProtocol.day(target.date)
+            guard let current = state else { throw WatchFailure.stopped }
+            if day.end < current.since { continue }
+            phase = "读取训练心率…"
+            let bytes = try await health.workoutBody(id: target.workout_id, day: day, since: current.since)
+            try check(version)
+            guard var next = state else { throw WatchFailure.stopped }
+            guard let bytes else {
+                next.skippedWorkouts = (next.skippedWorkouts ?? 0) + 1
+                try commit(next)
+                continue
+            }
+            next.pendingWorkout = bytes
+            try commit(next)
+            try await flushWorkout(config, version: version)
+        }
+    }
+
+    private func flushWorkout(_ config: WatchConfiguration, version: Int) async throws {
+        try check(version)
+        guard let body = state?.pendingWorkout else { return }
+        phase = "上传训练心率…"
+        let data = try await transport.post(config, path: "/api/heart-rate/import", body: body)
+        try check(version)
+        let stored = try HealthSyncProtocol.workoutAck(data)
+        guard var next = state else { throw WatchFailure.stopped }
+        next.pendingWorkout = nil
+        if stored { next.storedWorkouts = (next.storedWorkouts ?? 0) + 1 }
+        else { next.skippedWorkouts = (next.skippedWorkouts ?? 0) + 1 }
+        try commit(next)
     }
 
     private func flush(_ config: WatchConfiguration, version: Int) async throws {

@@ -1,6 +1,6 @@
 # Agent entry point
 
-This repository is the OpenGym Agent extension, based on upstream openGym 1.4.1.
+This repository is the OpenGym Agent extension, based on upstream openGym 1.4.4.
 Read `docs/AGENT_DEPLOYMENT.md` before deployment and `docs/OPERATIONS.md` for
 validation and known failures. `CLAUDE.md` describes architecture; where it describes
 old upstream media services or release infrastructure, this entry point takes priority.

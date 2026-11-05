@@ -1,3 +1,4 @@
+import { readingsOf, readingAt, cleanTime } from './weigh-ins.js'
 // What the Android app writes to Health Connect (#200), worked out from the state alone. Health
 // Connect is the phone's own store for health data: other apps read the workouts and weigh-ins from
 // there. Nothing here talks to it — lib/health-sync.js hands these records to the native plugin.
@@ -64,14 +65,15 @@ export function sessionRecord(w, { unit, nameOf, speedUnit }) {
  * One weight record per weigh-in day. `t` is when it was typed, which for a weigh-in added to an
  * earlier day is not on that day; then it is put at 08:00 local time on the day it belongs to.
  */
-export function weightRecord(b, unit) {
-  const w = Number(b?.w)
+export function weightRecord(b, unit, r = null) {
+  const w = Number(r ? r.w : b?.w)
   if (!b?.d || !(w > 0)) return null
-  const typed = Number(b.t)
-  const time = typed > 0 && isoOf(new Date(typed)) === b.d ? typed : localMorning(b.d)
+  const typed = Number(r ? r.t : b.t)
+  const at = r && cleanTime(r.at)
+  const time = at ? readingAt(b.d, at) : typed > 0 && isoOf(new Date(typed)) === b.d ? typed : localMorning(b.d)
   if (!(time > 0)) return null
   const kg = unit === 'lb' ? w / LB_PER_KG : w
-  return { id: 'opengym-bw-' + b.d, time, kg: Math.round(kg * 1000) / 1000 }
+  return { id: weightRecordId(b.d, r?.id), time, kg: Math.round(kg * 1000) / 1000 }
 }
 
 function localMorning(iso) {
@@ -85,7 +87,11 @@ export function healthRecords(S, { nameOf, speedUnit }) {
   const unit = S?.unit === 'lb' ? 'lb' : 'kg'
   return {
     sessions: (S?.workouts || []).map(w => sessionRecord(w, { unit, nameOf, speedUnit })).filter(Boolean),
-    weights: (S?.bodyweight || []).map(b => weightRecord(b, unit)).filter(Boolean),
+    // A weigh-in read from the hub (`src`, lib/health-read.js) is already there: never written back.
+    // Every weigh-in of a day with several (lib/weigh-ins.js), each at its own time.
+    weights: (S?.bodyweight || []).flatMap(b => (Array.isArray(b?.ins)
+      ? readingsOf(b).filter(r => !r.src).map(r => weightRecord(b, unit, r))
+      : b?.src ? [] : [weightRecord(b, unit)])).filter(Boolean),
   }
 }
 
@@ -113,7 +119,7 @@ export function recordKey(rec) {
  * Returns { sessions, weights, remove: { sessions: [id], weights: [id] }, written } — `written`
  * being what the phone has written once the sync went through.
  */
-export function planSync({ sessions, weights }, written = {}) {
+export function planSync({ sessions, weights }, written = {}, gone = null) {
   const next = {}
   const out = { sessions: [], weights: [], remove: { sessions: [], weights: [] } }
   const take = (list, k, into) => {
@@ -128,6 +134,7 @@ export function planSync({ sessions, weights }, written = {}) {
   take(weights, 'weight', out.weights)
   for (const [id, was] of Object.entries(written || {})) {
     if (next[id]) continue
+    if (gone && !isGone(gone, id)) { next[id] = was; continue }
     if (was?.k === 'session') out.remove.sessions.push(id)
     else if (was?.k === 'weight') out.remove.weights.push(id)
   }
@@ -142,5 +149,25 @@ export function writtenIds(written = {}) {
     if (was?.k === 'session') out.sessions.push(id)
     else if (was?.k === 'weight') out.weights.push(id)
   }
+  return out
+}
+
+export const weightRecordId = (d, rid) => 'opengym-bw-' + d + (rid != null && String(rid) !== '0' ? '-' + rid : '')
+
+export function goneIds(S) {
+  const out = new Set()
+  const del = S?.deleted && typeof S.deleted === 'object' ? S.deleted : {}
+  for (const [k, at] of Object.entries(del.workouts || {})) if (Number(at) > 0) out.add('opengym-w-' + k)
+  // A removed day takes all its weigh-ins with it (planSync matches the `*`); one weigh-in
+  // removed from a day that keeps others is on record in that day's `gone`.
+  for (const [k, at] of Object.entries(del.bodyweight || {})) if (Number(at) > 0) { out.add('opengym-bw-' + k); out.add('opengym-bw-' + k + '-*') }
+  for (const b of S?.bodyweight || []) {
+    if (!b?.d || !b.gone || typeof b.gone !== 'object') continue
+    for (const [rid, at] of Object.entries(b.gone)) if (Number(at) > 0) out.add(weightRecordId(b.d, rid))
+  }
+  const reset = S?.resetIds && typeof S.resetIds === 'object' ? S.resetIds : {}
+  for (const k of Array.isArray(reset.workouts) ? reset.workouts : []) out.add('opengym-w-' + k)
+  // A weigh-in is named by its day and time there ("2026-09-17|1758…"); Health knows it by day.
+  for (const k of Array.isArray(reset.bodyweight) ? reset.bodyweight : []) { const d = String(k).split('|')[0]; out.add('opengym-bw-' + d); out.add('opengym-bw-' + d + '-*') }
   return out
 }

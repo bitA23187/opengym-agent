@@ -10,8 +10,8 @@ const scopeLabel = s => ({
   'nutrition:read':'读取本账号的餐次、营养摄入与每日汇总',
   'nutrition:write':'记录、修改或删除本账号的饮食摄入',
   'health:read':'读取本账号的睡眠、静息心率与 HRV 趋势',
-  'body:read':'读取本账号的体重、围度与目标体重',
-  'body:write':'记录、修改或删除本账号的体重、围度和目标体重',
+  'body:read':'读取本账号的围度与身体测量（不含体重）',
+  'body:write':'记录、修改或删除本账号的围度与身体测量（不含体重）',
   'training:read':'读取训练历史、逐组记录、训练备注与统计汇总（不含体重）',
 })[s] || s;
 export function html(res, title, content, status = 200, head = '', scriptNonce = null) {
@@ -243,5 +243,12 @@ export function createOAuth({ origin, store, userById, readSession }) {
       management.delete(req.body.nonce); g.revoked=true; store.save(); res.redirect(PREFIX+'/connections');
     });
   }
-  return { provider, resource, mount };
+  function removeUser(uid) {
+    const grants = new Set(Object.entries(store.data.grants).filter(([, g]) => g.uid === uid).map(([id]) => id));
+    for (const id of grants) delete store.data.grants[id];
+    for (const [id, token] of Object.entries(store.data.tokens)) if (grants.has(token.grant)) delete store.data.tokens[id];
+    for (const map of [pending, codes, management]) for (const [id, value] of map) if (value.uid === uid) map.delete(id);
+    store.save();
+  }
+  return { provider, resource, mount, removeUser };
 }

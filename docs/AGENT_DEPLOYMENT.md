@@ -1,8 +1,8 @@
 # 给 AI Agent 的部署与修改指南
 
-本指南适用于 **OpenGym Agent 扩展版**。代码基于 upstream openGym 1.4.1，包含 OAuth/MCP 训练助手、饮食与日常健康、iPhone HealthKit 与独立 watchOS 同步。不是上游官方发行版。
+本指南适用于 **OpenGym Agent 扩展版**。代码基于 upstream openGym 1.4.4，包含 OAuth/MCP 训练助手、饮食与日常健康、iPhone HealthKit 与独立 watchOS 同步。不是上游官方发行版。
 
-仓库：https://github.com/bitA23187/opengym-agent 。首次交付标签：`agent-v0.1.0`。
+仓库：https://github.com/bitA23187/opengym-agent 。首次交付标签：`agent-v1.4.4`。
 
 ## 0. 执行约定与完成标准
 
@@ -28,7 +28,7 @@ docker compose version
 ## 2. 获取固定版本
 
 ```sh
-git clone --branch agent-v0.1.0 --depth 1 https://github.com/bitA23187/opengym-agent.git
+git clone --branch agent-v1.4.4 --depth 1 https://github.com/bitA23187/opengym-agent.git
 cd opengym-agent
 git rev-parse HEAD
 cp agent.env.example agent.env
@@ -41,7 +41,7 @@ chmod 600 agent.env
 git switch -c codex/my-change
 ```
 
-`agent-v0.1.0` 固定源码，不会自动追随 `main`。Node/nginx 基础镜像仍可能更新；部署时另行记录镜像 ID，严格复现运行镜像应保留镜像归档或使用自己验证的 digest。不要重打同名标签，也不要将上游 `v1.4.1` 与扩展版标签混淆。
+`agent-v1.4.4` 固定源码，不会自动追随 `main`。Node/nginx 基础镜像仍可能更新；部署时另行记录镜像 ID，严格复现运行镜像应保留镜像归档或使用自己验证的 digest。不要重打同名标签，也不要将上游 `v1.4.1` 与扩展版标签混淆。
 
 ## 3. 本机部署扩展版
 
@@ -59,7 +59,7 @@ curl --fail http://localhost:8080/api/health
 
 此阶段仅验证 Web/API 与账号功能；HTTP 插件构造器会拒绝非 HTTPS 的 ORIGIN，因此不要提前开启。
 
-API 镜像从本仓库源码构建，含插件与共享训练逻辑；Web 镜像编译本仓库前端，在 upstream `opengym-web:1.4.1` 中保留 openGym 使用的动作媒体。源码包不含这些受单独许可限制的媒体，不从维护者服务器复制或热链接。构建失败时先修复 npm/GHCR/DNS/磁盘问题，不回退到上游 `latest` 冒充扩展版。
+API 镜像从本仓库源码构建，含插件与共享训练逻辑；Web 镜像编译本仓库前端，在 upstream `opengym-web:1.4.4` 中保留 openGym 使用的动作媒体。源码包不含这些受单独许可限制的媒体，不从维护者服务器复制或热链接。构建失败时先修复 npm/GHCR/DNS/磁盘问题，不回退到上游 `latest` 冒充扩展版。
 
 `./data` 首次启动由 API 创建，包含账户、会话密钥、训练/健康状态与插件授权；API 使用单实例写入，不能通过多副本共享此目录。首次创建所有者账号后，确认其有管理员入口，再修改 `agent.env`：
 

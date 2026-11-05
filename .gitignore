@@ -52,3 +52,11 @@ agent.env
 backups/
 **/xcuserdata/
 **/*.xcuserstate
+
+# Locally downloaded media, signed packages and device signing material
+catalogue/media/
+**/*.shortcut
+**/*.apk
+**/*.ipa
+**/*.keystore
+**/*.jks

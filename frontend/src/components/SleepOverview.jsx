@@ -23,13 +23,12 @@ export default function SleepOverview({days, timezone, endDate=todayISO(), selec
   const readable=date=>`${Number(date.slice(5,7))}/${Number(date.slice(8,10))}`
   const dayLabel=day=>`${day.date} · ${day.sleep?duration(day.sleep.minutes):t('No sleep record')}`
   return <section className="card sleep-stages sleep-overview" aria-label={t('Sleep overview')}>
-    <div className="row between health-heading"><h2>{t(compact ? 'Sleep and recovery' : 'Daily sleep duration')}</h2>{compact ? <Button size="sm" onClick={onOpen}>{t('Open')}</Button> : <div aria-label={t('Sleep display period')}><Segmented value={period} onChange={n=>{setPeriod(n);onPeriodChange?.(n);pick('')}} options={[7,30].map(value=>({value,label:`${value} ${t('days')}`}))} /></div>}</div>
-    {compact ? <p className="small muted">{selected?.date} · {selected?.sleep ? duration(selected.sleep.minutes) : t('No sleep record')}</p> : <>
+    <div className="row between health-heading"><h2>{t(compact ? 'Sleep and recovery' : 'Daily sleep duration')}</h2>{compact && <Button size="sm" variant="tinted" trailingIcon="chevronRight" onClick={onOpen}>{t('Open')}</Button>}</div>
     <p className="small muted">{selected?.date} · {selectedDate ? t('Selected day') : t('Latest recorded day')}</p>
-    <p className="health-value sleep-daily-value"><strong>{selected?.sleep?duration(selected.sleep.minutes):'—'}</strong></p>
-    <div className="sleep-period-summary"><div><span className="small muted">{t('Average time asleep')}</span><strong>{average.minutes==null?'—':duration(average.minutes)}</strong></div><p className="small muted">{calendar[0]?.date} – {endDate}<br/>{t('{0} of {1} days recorded',average.count,period)}</p></div>
+    <p className="health-value sleep-daily-value"><strong>{selected?.sleep?duration(selected.sleep.minutes):'–'}</strong></p>
+    <div className="sleep-period-summary"><div><span className="small muted">{t('Average time asleep')}</span><strong>{average.minutes==null?'–':duration(average.minutes)}</strong></div><p className="small muted">{calendar[0]?.date} – {endDate}<br/>{t('{0} of {1} days recorded',average.count,period)}</p></div>
+    <div className="sleep-period" role="group" aria-label={t('Sleep display period')}><Segmented className="seg-range" value={period} onChange={n=>{setPeriod(n);onPeriodChange?.(n);pick('')}} options={[7,30].map(value=>({value,label:t(value === 7 ? '7 days' : '30 days')}))} /></div>
     <div className="sleep-mode" aria-label={t('Sleep chart type')}><Segmented value={mode} onChange={setMode} options={[{value:'stages',label:t('Sleep stages')},{value:'duration',label:t('Duration')}]} /></div>
-    </>}
     <svg className="sleep-multiday-chart" viewBox="0 0 360 208" role="group" aria-label={t(mode==='duration'?'Daily sleep duration chart':'Multi-day sleep stages chart')} onClick={e=>{
       if(e.target.closest?.('[data-sleep-day]'))return
       const box=e.currentTarget.getBoundingClientRect(),px=(e.clientX-box.left)/box.width*360
@@ -54,11 +53,9 @@ export default function SleepOverview({days, timezone, endDate=todayISO(), selec
         {(period===7||[0,6,13,20,period-1].includes(i))&&<text x={x(i)+width/2} y="201" textAnchor="middle">{readable(day.date)}</text>}
       </g>)}
     </svg>
-    {!compact && <>
     <p className="small sleep-day-detail" aria-live="polite">{selected?dayLabel(selected):t('No sleep records yet.')}</p>
-    {mode==='stages' && <><div className="sleep-overview-legend">{SLEEP_STAGES.map(([key,label])=><span key={key}><i className={`sleep-${key}`} />{t(label)}</span>)}</div><p className="small muted">{t('Stage columns show recorded sleep sessions at local clock times. Daily duration includes all sessions.')}</p>{average.count>0&&all.length===0&&<p className="small muted">{t('Stage details were not uploaded. Sync sleep again to include them.')}</p>}</>}
+    {mode==='stages' && <><div className="sleep-overview-legend">{SLEEP_STAGES.filter(([key])=>key!=='asleepUnspecified'||all.some(s=>s.category===key)).map(([key,label])=><span key={key}><i className={`sleep-${key}`} />{t(label)}</span>)}</div><p className="small muted">{t('Stage columns show recorded sleep sessions at local clock times. Daily duration includes all sessions.')}</p>{average.count>0&&all.length===0&&<p className="small muted">{t('Stage details were not uploaded. Sync sleep again to include them.')}</p>}</>}
     <p className="small muted">{t('Missing days stay empty and are excluded from the average. Tap a day to view its details.')}</p>
     {!latest&&<p className="small muted">{t('No sleep records yet.')}</p>}
-    </>}
   </section>
 }

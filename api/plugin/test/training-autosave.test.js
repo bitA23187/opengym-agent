@@ -12,7 +12,7 @@ test('direct-save preference applies only to its opted-in account and ordinary r
   assert.equal(training.preview({ id: 'bob' }, 'grant', input).authorization.requires_user_confirmation, true)
   assert.equal(training.preview({ id: 'alice' }, 'grant', { date: input.date, workout_id: 'old', delete_workout: true }).authorization.requires_user_confirmation, true)
   assert.equal(training.preview({ id: 'alice' }, 'grant', { ...input, context_notes: [{ text: 'Important context', kind: 'preference' }] }).authorization.requires_user_confirmation, true)
-  assert.equal(training.preview({ id: 'alice' }, 'grant', { ...input, exercise_notes: [{ exercise_id: '0293', note: 'Standing note' }] }).authorization.requires_user_confirmation, true)
+  assert.equal(training.preview({ id: 'alice' }, 'grant', { ...input, exercise_notes: [{ exercise_id: '0293', note: 'Standing note' }] }).authorization.requires_user_confirmation, false)
   assert.throws(() => training.save({ id: 'bob' }, 'grant', alice.draft_id, true, alice.confirmation_summary), /different authorization/)
 })
 
@@ -23,6 +23,7 @@ test('complete but questionable records require clarification before direct save
   const preview = training.preview({ id: 'alice' }, 'grant', { ...input, review_questions: questions })
   assert.equal(preview.authorization.requires_user_confirmation, true)
   assert.deepEqual(preview.review_questions, questions)
+  assert.throws(() => training.save({ id: 'alice' }, 'grant', preview.draft_id, true, preview.confirmation_summary), /Resolve review_questions/)
   assert.match(preview.instructions, /Do not call save_training_update yet/)
   const clear = training.preview({ id: 'alice' }, 'grant', input)
   assert.equal(clear.authorization.requires_user_confirmation, false)

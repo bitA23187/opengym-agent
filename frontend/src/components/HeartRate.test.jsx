@@ -64,7 +64,7 @@ it('shows server metrics with distinct sample mean, percentile and coverage expl
 it('shows unknown metric durations as unavailable rather than zero', async () => {
   api.mockResolvedValue({ ...data, metrics: { workout_elapsed_seconds: null, linked_window_seconds: null, observed_seconds: 0, observation_ratio: null } })
   await mount()
-  expect(host.textContent).toContain('—')
+  expect(host.textContent).toContain('–')
   expect(host.textContent).not.toContain('NaN')
   expect(host.textContent).not.toContain('null')
 })
@@ -102,6 +102,6 @@ it('filters logged-set markers to valid timestamps inside the chart window', asy
 it('does not substitute sample mean when observed time mean is unavailable', async () => {
   api.mockResolvedValue({ ...data, metrics: { observed_time_mean_bpm: null, sample_mean_bpm: 110 } })
   await mount()
-  expect(host.textContent).toContain('—Observed time average')
+  expect(host.textContent).toContain('–Observed time average')
   expect(host.textContent).toContain('110Sample average')
 })

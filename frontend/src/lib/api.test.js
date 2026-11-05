@@ -204,3 +204,25 @@ describe('passkeyError', () => {
     expect(passkeyError({}, 'Sign-in failed')).toBe('Sign-in failed')
   })
 })
+
+// A transport failure during body consumption must remain offline, never HTTP 200.
+it('preserves interrupted response streams as network failures and bypasses stale caches', async () => {
+  const { api } = await import('./api.js')
+  const error = new TypeError('Load failed')
+  const original = globalThis.fetch
+  const fetcher = vi.fn(async () => ({ ok: true, status: 200, json: async () => { throw error } }))
+  globalThis.fetch = fetcher
+  try {
+    await expect(api('/api/data')).rejects.toBe(error)
+    expect(fetcher.mock.calls[0][1].cache).toBe('no-store')
+    expect(error.status).toBeUndefined()
+  } finally { globalThis.fetch = original }
+})
+
+it('keeps authentication refusal even if its response body is interrupted', async () => {
+  const { api } = await import('./api.js')
+  const original = globalThis.fetch
+  globalThis.fetch = async () => ({ ok: false, status: 401, json: async () => { throw new TypeError('Load failed') } })
+  try { await expect(api('/api/data')).rejects.toMatchObject({ status: 401 }) }
+  finally { globalThis.fetch = original }
+})

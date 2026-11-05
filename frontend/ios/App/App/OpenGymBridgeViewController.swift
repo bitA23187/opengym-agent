@@ -6,5 +6,6 @@ final class OpenGymBridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(HealthKitPlugin())
         bridge?.registerPluginInstance(PrintPlugin())
+        bridge?.registerPluginInstance(DeviceAuthPlugin())
     }
 }

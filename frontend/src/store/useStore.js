@@ -88,11 +88,13 @@ const gainedWorkoutMedia = (prev, next) => {
 export const DEF = {
   unit: 'kg', restSec: 90, restPauseSec: 15, sound: true, soundOnSilent: false, vibrateOnSilent: false, timerFlash: false, timedSetOvertime: false, keepAwake: true, lang: 'en',
   theme: 'dark', accent: 'lime', body: 'male', targetW: null,
+  // The weekly-rate corridor on the body-weight card (#759, lib/bodyweight.js rateCorridor).
+  rateGoal: null,
   bodyweight: [], routines: [], week: {}, dayPlan: {},
   // A note per day off (#261): { [iso]: { tag, text, _ts } } (lib/day-notes.js). A noted day is
   // excused from the missed-day nudge; each day merges on its own stamp (lib/sync-merge.js).
   dayNotes: {},
-  nutritionEntries: {}, nutritionGoals: {},
+  nutritionEntries: {}, nutritionGoals: {}, foods: {},
   // Body measurements (#82): one check-in per day, values in cm whatever the weight unit
   // (lib/measurements.js); merged across devices like weigh-ins (lib/sync-merge.js).
   measurements: [], measurementEnabled: null, customMeasurements: [],
@@ -295,7 +297,7 @@ function loadState() {
 // weigh-ins and custom exercises. A custom exercise is all a new guest may have made — with its
 // photo or video, which the server counts as unreferenced until the state that names it lands —
 // so a profile created from such a copy takes it at once, like one holding a workout.
-const hasData = st => !!((st.workouts || []).length || (st.routines || []).length || (st.bodyweight || []).length || (st.customEx || []).length || (st.measurements || []).length || Object.values(st.nutritionEntries || {}).some(e => e?.date))
+const hasData = st => !!((st.workouts || []).length || (st.routines || []).length || (st.bodyweight || []).length || (st.customEx || []).length || (st.measurements || []).length || Object.values(st.nutritionEntries || {}).some(e => e?.date) || Object.values(st.foods||{}).some(f=>f?.name) || Object.values(st.trainingLogs||{}).some(l=>l?.status==='in_progress'))
 
 // Decide whether a pulled account state may replace the local saved state. A local active workout
 // is deliberately carried forward: the server stores completed/saved state, while the in-progress
@@ -723,7 +725,7 @@ export const useStore = create((set, get) => {
     // An older app's owed copy over the revision it read: the server stamps what that app changed
     // against the copy it holds, exactly as it would for that app (api/sync-stamps.js).
     const legacy = readLegacy()
-    const body = { state: S, stamped: !(legacy && legacy.owner === get().user?.id) }
+    const body = { state: S, capabilities:['structured_training_v1','food_items_v1'],stamped: !(legacy && legacy.owner === get().user?.id) }
     if (asReplace != null) { body.baseRev = asReplace.rev; if (asReplace.wid) body.baseWid = asReplace.wid }
     else if (!force && base) { body.baseRev = base.rev; if (base.wid) body.baseWid = base.wid }
     try {
@@ -1830,6 +1832,31 @@ export const useStore = create((set, get) => {
       if (!left.owed && !(await stashActive())) return { owed: true, count: 0, stashed: false }
       await clearLocalSession()
       return left.owed ? owedResult(left, { stashed: true }) : { owed: false }
+    },
+
+    // Settings → "Delete my account": the server removes the profile and everything of it
+    // (POST /api/account/delete, `name` typed back to confirm, `proof` the owner's: a passkey
+    // assertion or the current password, from ProveOwner in components/PasswordAuth.jsx), then
+    // this device ends where a sign-out leaves it, and a phone goes back to local-only as a
+    // disconnect does. Nothing is kept aside: there is no account left for kept changes or a
+    // running workout to come back to. The request is not swallowed: refused (the name, the
+    // proof, the last admin) or not answered, nothing here changes and the caller says why.
+    async deleteAccount(name, proof = {}) {
+      const uid = get().user?.id
+      await disableHealthKit()
+      await api('/api/account/delete', { method: 'POST', body: JSON.stringify({ name, ...proof }) })
+      await stopTimers()
+      const all = await readStashes()
+      const key = stashKey(serverBase(), uid)
+      if (all[key]) { delete all[key]; await writeStashes(all) }
+      await clearLocalSession()
+      if (MOBILE) {
+        await forgetRemote()
+        pairedBase = null
+        setSync({ server: null })
+        get().setGuest(true)
+        set({ ready: true })
+      }
     },
 
     // Demo build only: drop the seeded example profile back in (Settings → "Reset demo data").

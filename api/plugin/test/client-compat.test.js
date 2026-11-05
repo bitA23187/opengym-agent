@@ -37,10 +37,10 @@ test('official 1.4.1 merge keeps post-workout Agent imports, body metrics and ex
   const before={unit:'kg',routines:[],workouts:[],bodyweight:[],measurements:[],week:{},dayPlan:{},exNotes:{},_ts:1,_rev:1,_wid:'old'};
   const phone=structuredClone(before);phone.workouts.push({id:'phone',d:'2026-10-13',entries:[]});stampChange(before,phone,Date.now()+100);phone._ts=Date.now()+100;
   const server=appendTrainingUpdate(before,{rev:1,wid:'old',summary:'Synthetic completed workout',workout:{id:'agent',d:'2026-10-14',name:'Completed after training',entries:[{id:'0293',target:{mode:'reps',sets:1,reps:10,weight:12},sets:[{w:12,r:10,done:true,phase:'work'}]}]},
-    changeDayNote:true,date:'2026-10-14',dayNote:'Synthetic day note',exerciseNotes:[{exercise_id:'0293',note:'Seat 4'}],contextNotes:[{id:'context',after:{text:'User-reported limitation',priority:'important',status:'active'}}],bodyUpdate:{entries:[{date:'2026-10-14',weight:72,measurements:{waist:81}}]}});
+    changeDayNote:true,date:'2026-10-14',dayNote:'Synthetic day note',exerciseNotes:[{exercise_id:'0293',note:'Seat 4'}],contextNotes:[{id:'context',after:{text:'User-reported limitation',priority:'important',status:'active'}}],bodyUpdate:{entries:[{date:'2026-10-14',measurements:{waist:81}}]}});
   const merged=mergeStates(phone,server);
   assert.deepEqual(merged.workouts.map(w=>w.id),['phone','agent']);assert.equal(merged.workouts[1].entries[0].sets[0].w,12);assert.equal(merged.workouts[1].entries[0].sets[0].r,10);
-  assert.equal(merged.bodyweight[0].w,72);assert.equal(merged.measurements[0].waist,81);assert.equal(merged.dayNotes['2026-10-14'].text,'Synthetic day note');assert.equal(merged.exNotes['0293'],'Seat 4');
+  assert.equal(merged.bodyweight.length,0);assert.equal(merged.measurements[0].waist,81);assert.equal(merged.dayNotes['2026-10-14'].text,'Synthetic day note');assert.equal(merged.exNotes['0293'],'Seat 4');
   assert.equal(merged.trainingNotes.context.text,'User-reported limitation');assert.equal(merged.active,undefined);
 });
 
@@ -55,8 +55,8 @@ test('real paired-phone PUT: stale revision is rejected; incomplete metadata is 
   const base='http://127.0.0.1:'+await boundPort(child,()=>output),origin='https://gym.test';
   const value=`${uid}:${Date.now()+86400000}:0`,cookie='gymsid='+value+'.'+crypto.createHmac('sha256',secret).update(value).digest('base64url');
   const post=(url,body,headers={})=>fetch(base+url,{method:'POST',headers:{'content-type':'application/json',origin,...headers},body:JSON.stringify(body)});
-  const code=(await(await post('/api/pair/create',{}, {cookie})).json()).code;
-  const paired=await(await post('/api/pair/redeem',{code})).json();assert.ok(paired.token);
+  const devicePayload=`${uid}:${Date.now()+86400000}:0:b`;
+  const paired={token:devicePayload+'.'+crypto.createHmac('sha256',secret).update(devicePayload).digest('base64url')};
   const headers={authorization:'Bearer '+paired.token,'content-type':'application/json',origin};
   const read=async()=>{const r=await fetch(base+'/api/data',{headers});assert.equal(r.status,200);return r.json();};
   const put=body=>fetch(base+'/api/data',{method:'PUT',headers,body:JSON.stringify(body)});

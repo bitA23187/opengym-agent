@@ -1,3 +1,4 @@
+import './fixture-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { tempData, sampleState } from './helpers.mjs';

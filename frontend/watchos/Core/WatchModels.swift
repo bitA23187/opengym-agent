@@ -1,5 +1,31 @@
 import Foundation
 
+enum WatchRelativeTime {
+    static func text(for date: Date, now: Date, locale: Locale = .current) -> String {
+        // Completed operations must never appear to be scheduled in the future.
+        let elapsed = max(0, now.timeIntervalSince(date))
+        if elapsed < 60 { return "刚刚" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = locale
+        formatter.unitsStyle = .full
+        formatter.dateTimeStyle = .numeric
+        if elapsed < 3600 {
+            return formatter.localizedString(from: DateComponents(minute: -Int(elapsed / 60)))
+        }
+        if elapsed < 86400 {
+            return formatter.localizedString(from: DateComponents(hour: -Int(elapsed / 3600)))
+        }
+        if elapsed < 7 * 86400 {
+            return formatter.localizedString(from: DateComponents(day: -Int(elapsed / 86400)))
+        }
+        let absolute = DateFormatter()
+        absolute.locale = locale
+        absolute.dateStyle = .medium
+        absolute.timeStyle = .short
+        return absolute.string(from: date)
+    }
+}
+
 struct WatchConfiguration: Codable, Equatable {
     let id: UUID
     let server: String
@@ -79,6 +105,9 @@ struct WatchState: Codable {
     var since = Date().addingTimeInterval(-30 * 86400)
     var anchors: [String: Data] = [:]
     var pending: WatchQueuedPage?
+    var pendingWorkout: Data?
+    var storedWorkouts: Int?
+    var skippedWorkouts: Int?
     var summaries: [WatchMetricSummary] = []
     var earliest: Date?
     var inspectedAt: Date?
@@ -95,12 +124,12 @@ struct WatchSnapshot {
     var phase: String?
     var state: WatchState?
     var connected: Bool { server != nil }
-    var pendingCount: Int { state?.pending == nil ? 0 : 1 }
+    var pendingCount: Int { (state?.pending == nil ? 0 : 1) + (state?.pendingWorkout == nil ? 0 : 1) }
 }
 
 enum WatchFailure: Error, LocalizedError {
     case invalidConfiguration, accountMismatch, busy, storage, invalidResponse, http(Int)
-    case stopped, healthUnavailable, invalidHealthData, pairingExpired, pairingDenied
+    case stopped, healthUnavailable, invalidHealthData, sampleLimit, pairingExpired, pairingDenied
     var errorDescription: String? {
         switch self {
         case .invalidConfiguration: return "请填写 HTTPS 根地址、账户 ID 和有效的 Apple 健康上传凭证。"
@@ -114,6 +143,7 @@ enum WatchFailure: Error, LocalizedError {
         case .stopped: return "连接已解除，本次操作已停止。"
         case .healthUnavailable: return "此设备无法读取健康数据，请使用支持 HealthKit 的 Apple Watch。"
         case .invalidHealthData: return "健康数据包含无法识别的记录，尚未推进同步进度。"
+        case .sampleLimit: return "单次训练的健康样本过多，请通过 iPhone 或分窗口手动导入。"
         case .pairingExpired: return "二维码已过期，请重新生成后扫码。"
         case .pairingDenied: return "绑定已被拒绝或撤销，请核对账户后重新扫码。"
         }
@@ -121,7 +151,27 @@ enum WatchFailure: Error, LocalizedError {
     static func message(_ error: Error) -> String {
         if let failure = error as? Self { return failure.errorDescription! }
         if error is CancellationError { return "操作已中断，重新打开后可手动重试。" }
-        if error is URLError { return "网络请求未完成。请连接 Wi-Fi 或热点，再点立即同步。" }
+        if let error = error as? URLError {
+            switch error.code {
+            case .cancelled:
+                return "网络请求已中断，请保持 App 在前台后重试。"
+            case .notConnectedToInternet, .dataNotAllowed, .internationalRoamingOff:
+                return "手表暂时无法联网。请检查与 iPhone 的连接，或使用 Wi-Fi／蜂窝网络后重试。"
+            case .timedOut:
+                return "网络请求超时。请保持 App 在前台，检查网络及服务器后重试。"
+            case .cannotFindHost, .dnsLookupFailed:
+                return "无法解析服务器地址。请检查网络及服务器域名后重试。"
+            case .cannotConnectToHost:
+                return "无法连接服务器。请检查服务器是否可访问后重试。"
+            case .networkConnectionLost:
+                return "同步时网络连接中断，请保持 App 在前台后重试。"
+            case .secureConnectionFailed, .serverCertificateHasBadDate, .serverCertificateUntrusted,
+                 .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid:
+                return "无法验证服务器的安全连接。请检查设备时间和服务器 HTTPS 证书。"
+            default:
+                return "网络请求失败（\(error.code.rawValue)），请检查网络及服务器后重试。"
+            }
+        }
         if error is DecodingError || error is HealthSyncFailure { return Self.invalidResponse.errorDescription! }
         return "操作未完成。请解锁手表、检查健康读取权限后重试。"
     }
@@ -132,6 +182,7 @@ protocol WatchHealthReading {
     func earliestDate() async -> Date
     func inspect(since: Date) async throws -> [WatchMetricSummary]
     func page(metric: WatchMetric, anchor: Data?, since: Date) async throws -> WatchPage
+    func workoutBody(id: String, day: DateInterval, since: Date) async throws -> Data?
 }
 
 protocol WatchTransporting {

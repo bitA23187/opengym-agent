@@ -1,3 +1,5 @@
+import {scheduleStatus} from '../lib/schedule-status.js'
+import SleepSummary from '../components/SleepSummary.jsx'
 import { NutritionCard } from './Nutrition.jsx'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -11,12 +13,16 @@ import HeartRateSync from '../components/HeartRateSync.jsx'
 import Icon from '../components/Icon.jsx'
 import QueueRow from '../components/QueueRow.jsx'
 import { queueOf, queueView, weekTally, pinState } from '../lib/queue.js'
+import { WeeklySetsHomeLine } from '../components/WeeklySets.jsx'
+import { RecapHomeCard } from '../components/Recap.jsx'
 import { scheduleModeOf } from '../lib/rotation.js'
 import { useConnectionTrouble } from '../components/SyncBanner.jsx'
 import { Button } from '../components/ui.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 import { glyphOf } from '../lib/glyphs.js'
 import { dayNoteOf } from '../lib/day-notes.js'
+import { weighInAt } from '../lib/bodyweight.js'
+import WeightRate from '../components/WeightRate.jsx'
 
 // Home = what to do now + a quick glance. Deep charts & history live in Stats.
 export default function Home() {
@@ -32,6 +38,7 @@ export default function Home() {
   // first, kept for the one-routine glyph. The derived session name joins them (§9).
   const todayRoutines = effectiveRoutines(S, todayISO())
   const routine = todayRoutines[0] || null
+  const unconfigured=scheduleStatus(S).status==='unconfigured'&&S.dayPlan?.[todayISO()]!=='rest'
   const todayName = todayRoutines.map(r => r.name).join(' + ')
   // A fulfilled pin (a coach session pinned to today and since done) reads as no override.
   const todayOvr = S.dayPlan[todayISO()] !== undefined && pinState(S, S.dayPlan[todayISO()]) !== 'done'
@@ -138,7 +145,7 @@ export default function Home() {
             <div className="lbl2">{t('Today')}</div>
             <div className="ttl">{S.active ? (editingSaved ? S.active.name : t('{0} (in progress)', S.active.name))
               : doneToday ? (doneToday.name ? t('{0} (done)', doneToday.name) : t('Workout done'))
-              : routine ? todayName : t('Rest day')}{todayOvr && routine && !doneToday ? ' · ' + t('rescheduled') : ''}</div>
+              : routine ? todayName : t(unconfigured?'Schedule not configured':'Rest day')}{todayOvr && routine && !doneToday ? ' · ' + t('rescheduled') : ''}</div>
             {next && !doneToday && <div className="ss">{t('Next session: {0}, {1}', t(DAYN[next.weekday]), next.routine.name)}</div>}
           </div>
         </div>
@@ -159,6 +166,9 @@ export default function Home() {
         </Button>
       </div>}
     </div>
+
+    {/* Week and month recap. */}
+    <RecapHomeCard S={S} />
 
     {/* Jump to the gym check-in cards (QR membership codes). Shown here as a quick tap on
         arrival at the gym; folds away per user via the "Gym check-in" switch in Settings. */}
@@ -219,6 +229,8 @@ export default function Home() {
           </div>
         )}
         <div className="chart" style={{ marginTop: 8 }}><LineChart points={bwPoints} h={130} unit={S.unit} goal={S.targetW} /></div>
+        {/* the weekly rate and, with one set, how it sits in its corridor (#759) */}
+        <WeightRate S={S} />
         {/* every weigh-in, week by week with its average (Discord 'Weight') */}
         <div className="row" style={{ justifyContent: 'flex-end', marginTop: 4 }}>
           <Button size="sm" variant="ghost" trailingIcon="chevronRight" onClick={weighInsSheet}>{t('All weigh-ins')}</Button>
@@ -227,6 +239,8 @@ export default function Home() {
         ? t('No weigh-ins yet. Log your weight to start the curve.')
         : t("No weigh-ins yet. Log your weight to start the curve (we also ask before every workout).")}</div>}
     </div>}
+
+    <SleepSummary todayOnly from="/home" />
 
     <div className="card tappable" style={{ cursor: 'pointer' }} {...tappable(() => calendarSheet())}>
       <div className="row between">
@@ -239,6 +253,9 @@ export default function Home() {
         </div>
         <Icon name="calendar" className="chev" style={{ fontSize: 20 }} />
       </div>
+      {/* Settings → Look & Home → Weekly sets on Home (lib/muscle-targets.js): the muscle with
+          the most room this week, one tap from the Stats card. */}
+      {S.homeMuscleSets === true && <WeeklySetsHomeLine S={S} onOpen={ev => { ev.stopPropagation(); nav('/stats') }} />}
     </div>
   </div>
 }

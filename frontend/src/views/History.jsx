@@ -1,3 +1,5 @@
+import {TrainingLogSessions,LogActivityForm} from '../components/StructuredActivity.jsx'
+import {useUI} from '../store/useUI.js'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { t, tn } from '../lib/i18n.js'
@@ -24,6 +26,8 @@ export default function History() {
     <div className="hdr"><button className="iconbtn" onClick={() => nav('/stats')} aria-label={t('Stats')}><Icon name="chevronLeft" /></button>
       <div style={{ flex: 1, marginInlineStart: 12 }}><h1>{t('History')}</h1><div className="sub">{tn('{0} workout', '{0} workouts', S.workouts.length)}</div></div></div>
     <Button icon="plus" onClick={logPastWorkoutSheet} style={{ marginBottom: 12 }}>{t('Log a past workout')}</Button>
+    <Button onClick={()=>useUI.getState().openSheet(close=><LogActivityForm close={close}/>)} style={{marginBottom:12}}>{t('Log activity')}</Button>
+    <TrainingLogSessions/>
     {rows.length ? <div className="list">{rows.map(r => r.w
       ? <WorkoutRow key={r.w.id} w={r.w} onClick={() => workoutDetailSheet(r.w)} />
       : <DayNoteRow key={'note-' + r.d} iso={r.d} note={r.note} />)}</div>

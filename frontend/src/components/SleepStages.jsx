@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { t } from '../lib/i18n.js'
+import { todayISO } from '../lib/format.js'
+import DatePicker from './DatePicker.jsx'
 import './SleepStages.css'
 import { SLEEP_STAGES as stages, sleepChartGeometry } from '../lib/sleep-chart.js'
 const duration = minutes => { const total = Math.round(minutes); return `${Math.floor(total / 60)} ${t('h')} ${total % 60} ${t('min')}` }
-export default function SleepStages({ days, timezone, selectedDate, onSelectDate }) {
+export default function SleepStages({ days, timezone, selectedDate, onSelectDate, embedded = false }) {
   const [selected, setSelected] = useState('')
   const [focused, setFocused] = useState(null)
   const available = days.filter(d => d.sleep).slice().sort((a, b) => a.date.localeCompare(b.date))
@@ -16,11 +18,12 @@ export default function SleepStages({ days, timezone, selectedDate, onSelectDate
   const { bars, connectors } = sleepChartGeometry(timeline, sleep?.start, sleep?.end)
   const stageLabel = s => `${t(stages.find(([key]) => key === s.category)[1])} · ${clock(s.start)}–${clock(s.end)} · ${duration((s.to - s.from) / 60000)}`
   const clock = at => new Intl.DateTimeFormat(undefined, { timeZone: timezone, hour: '2-digit', minute: '2-digit' }).format(new Date(at))
-  return <section className="card sleep-stages">
-    <div className="row between health-heading"><h2>{t('Sleep stages')}</h2>{day && <label className="small">{t('Wake date')} <select aria-label={t('Wake date')} value={day.date} onChange={e => { setSelected(e.target.value); onSelectDate?.(e.target.value); setFocused(null) }}>{available.slice().reverse().map(d => <option key={d.date}>{d.date}</option>)}</select></label>}</div>
+  const Container = embedded ? 'div' : 'section'
+  return <Container className={embedded ? 'sleep-stages sleep-stages-embedded' : 'card sleep-stages'}>
+    {!embedded && <div className="row between health-heading"><h2>{t('Sleep stages')}</h2><DatePicker label="Wake date" value={date || day?.date || todayISO()} onChange={value => { setSelected(value); onSelectDate?.(value); setFocused(null) }} /></div>}
     {!day ? <p className="muted">{date ? `${date} · ${t('No sleep record')}` : t('No sleep records yet.')}</p> : <>
-      <p className="health-value"><strong>{duration(sleep.mainMinutes)}</strong></p>
-      <p className="small muted">{t('Main sleep')} · {clock(sleep.start)}–{clock(sleep.end)} · {timezone}</p>
+      {!embedded && <p className="health-value"><strong>{duration(sleep.mainMinutes ?? sleep.minutes)}</strong></p>}
+      {Number.isFinite(start) && Number.isFinite(end) && <p className="small muted">{t('Main sleep')} · {clock(sleep.start)}–{clock(sleep.end)} · {timezone}</p>}
       {bars.length > 0 ? <>
         <svg viewBox="0 0 360 160" onClick={e => {
           const box = e.currentTarget.getBoundingClientRect()
@@ -39,10 +42,10 @@ export default function SleepStages({ days, timezone, selectedDate, onSelectDate
         </svg>
         <p className="small muted sleep-selection" aria-live="polite">{focused || t('Tap a stage to see its time and duration.')}</p>
       </> : <p className="muted">{t('Stage details were not uploaded. Sync sleep again to include them.')}</p>}
-      {sleep.stageMinutes && <dl className="sleep-stage-totals">{stages.map(([key, label]) => <div key={key}><dt><i className={`sleep-${key}`} />{t(label)}</dt><dd>{duration(sleep.stageMinutes[key] || 0)}</dd></div>)}</dl>}
+      {sleep.stageMinutes && <dl className="sleep-stage-totals">{stages.filter(([key]) => key !== 'asleepUnspecified' || sleep.stageMinutes[key] > 0).map(([key, label]) => <div key={key}><dt><i className={`sleep-${key}`} />{t(label)}</dt><dd>{duration(sleep.stageMinutes[key] || 0)}</dd></div>)}</dl>}
       <p className="small muted">{t('Stage totals include all sleep sessions on this wake date. The timeline shows the main session.')}{sleep.additionalSessions > 0 && ` ${t('Additional sessions')}: ${sleep.additionalSessions}`}</p>
       {sleep.stageMinutes?.asleepUnspecified > 0 && <p className="small muted">{t('Unspecified sleep has no stage detail, or contains conflicting stage records.')}</p>}
     </>}
     <p className="small muted sleep-credit"><a href="https://github.com/DanielJamesTronca/SleepChartKit" target="_blank" rel="noreferrer">SleepChartKit</a> · <a href="licenses/SleepChartKit.txt" target="_blank" rel="noreferrer">MIT</a></p>
-  </section>
+  </Container>
 }

@@ -16,7 +16,7 @@ final class WatchTransport: WatchTransporting, WatchPairingTransporting {
     func cancel() { lock.lock(); let sessions = Array(active.values); active = [:]; lock.unlock(); sessions.forEach { $0.invalidateAndCancel() } }
 
     func post(_ config: WatchConfiguration, path: String, body: Data) async throws -> Data {
-        guard ["/api/heart-rate/pending", "/api/daily-health/healthkit", "/api/watch-devices/verify"].contains(path) else { throw WatchFailure.invalidConfiguration }
+        guard ["/api/heart-rate/pending", "/api/heart-rate/import", "/api/daily-health/healthkit", "/api/watch-devices/verify"].contains(path) else { throw WatchFailure.invalidConfiguration }
         return try await send(server: config.server, path: path, body: body, token: config.token)
     }
     func pairingPost(server: String, path: String, body: Data) async throws -> Data {
@@ -29,6 +29,9 @@ final class WatchTransport: WatchTransporting, WatchPairingTransporting {
         let settings = URLSessionConfiguration.ephemeral
         settings.httpShouldSetCookies = false; settings.httpCookieStorage = nil; settings.urlCache = nil
         settings.requestCachePolicy = .reloadIgnoringLocalCacheData
+        // Let watchOS establish a route, including the paired iPhone connection.
+        // The resource timeout still bounds a foreground sync when no route appears.
+        settings.waitsForConnectivity = true
         settings.timeoutIntervalForRequest = 30; settings.timeoutIntervalForResource = 45
         let session = URLSession(configuration: settings, delegate: delegate, delegateQueue: nil)
         let id = UUID(); set(session, id: id)

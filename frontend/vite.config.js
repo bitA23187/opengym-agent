@@ -116,5 +116,5 @@ export default defineConfig({
       } : {})
     }
   },
-  build: { chunkSizeWarningLimit: 1500 }
+  build: { target: ['es2020', 'safari15'], chunkSizeWarningLimit: 1500 }
 })

@@ -1,12 +1,56 @@
 # openGym 私人 Agent 服务
 
+## All-account direct saves, 2026-10-28 (v0.8.2)
+
+This supersedes the account-only policy below. With PLUGIN_DIRECT_SAVE=1, all
+accounts use direct saves for clear user-requested training arrangements,
+training records, actual nutrition/goals and food-library upserts/restores.
+Explicit requests to remember technique/grip notes also authorize standing
+exercise note updates, including in the same batch as a workout. An incidental
+symptom stays in the current workout rather than automatically becoming lasting
+context. Context promotion, destructive removals and undo keep confirmation.
+
+The exact preview returns authorization.source=deployment_policy and
+requires_user_confirmation=false for eligible changes. Unresolved review_questions
+block saves; ordinary training drafts now persist those questions as well as
+returning them. Ambiguity/errors/outliers require focused clarification. This
+policy grants no new scopes, access to other accounts or permission to invent data.
+Set PLUGIN_DIRECT_SAVE=0 to fall back to the individual account allowlists.
+
+
+## Direct-save rules, 2026-10-28 (v0.8.1)
+
+This section supersedes older blanket preview/confirm instructions below.
+For accounts explicitly listed in PLUGIN_NUTRITION_AUTO_SAVE_USER_IDS, clear
+requested food-library upserts/restores now share direct-save authorization with
+actual meals and requested goals, including mixed batches.
+PLUGIN_PLAN_AUTO_SAVE_USER_IDS separately authorizes clear requested templates,
+exercise changes and schedules. Training records keep their existing preference.
+When the exact preview returns authorization.requires_user_confirmation=false,
+validate internally and save in the same turn without another confirmation reply;
+report success only after the matching save succeeds. Advice alone is not a save request.
+
+Clarify ambiguity, suspected mistakes, outliers, unit/side or raw/cooked conflicts
+first. Plans now accept review_questions; nonempty questions block saving on the
+server until clarified and previewed again. Empty questions do not prove clarity.
+Other accounts retain confirmation, as do nutrition deletion/food archive/delete,
+training deletion/undo, plan undo and long-term profile/context changes. Exact
+summaries, scopes, account/grant binding, revision checks, idempotency and host
+approval remain in force. Cached ChatGPT tool descriptions need a refresh and
+fresh-chat acceptance; server tests do not prove host behavior.
+
+
+2026-10-28：v0.8.0 源码完成增量训练、结构化运动与可配置记录字段、食品档案／食物项目／实际进食时间，配套 App 展示和编辑及旧客户端写入保护；共 29 个工具，已于 11:51:36（Asia/Taipei）部署服务器与网页。原生手机安装包尚未更新。接口、兼容性及回滚见 [结构化记录说明](PLUGIN_STRUCTURED_LOGS.md)。
+
+2026-10-28 改进（已随 v0.8.0 部署服务器与网页）：排期配置状态与轮转编辑、历史备注提升来源和去重、结构化工具错误及 CI 契约测试、原生 Rest-Pause、精简版本和汇总读取。现状审计、接口、分阶段计划与回滚说明见 [本轮改进记录](PLUGIN_IMPROVEMENTS_2026_10.md)。
+
 2026-10-21：v0.6.0 源码增加自定义动作搜索与别名、列表，以及创建/修改/归档/恢复/删除的预览保存流程，共 23 个工具。删除仅限没有引用的动作；已使用动作优先归档。旧官方 APK 不识别归档筛选，参见[能力说明](PLUGIN_CAPABILITIES.md)。已于 01:27 Asia/Taipei 部署，服务端与公网只读验收通过；ChatGPT 工具刷新及实体 Android 实际操作仍需客户端验收。部署和回退记录见 [OPERATIONS.md](OPERATIONS.md)。
 
 2026-10-18：v0.5.1 保留重要训练背景、统一备注检索、体重围度独立权限、局部纠错与撤销及进阶参数；移除仅限当天的临时开练和这轮新增的 App 界面改动，增加官方旧客户端回写保护。工具数 20。见 [能力说明](PLUGIN_CAPABILITIES.md)和[上游升级与补丁](PLUGIN_UPGRADES.md)。部署与验收以 OPERATIONS.md 为准；下文较早版本为历史记录。
 
 2026-10-15：v0.3.1 实现了“读取实际训练 → 回顾历史 → 预览完整调整 → 确认保存”的闭环。已部署到原私人端点，健康检查及十三工具公网探针通过；镜像和回退信息见本机运维日志（根目录 `OPERATIONS.md`，不纳入 Git）。Android 普通聊天中的新版工具发现、重新授权、真实保存与手机同步仍需端到端验收；服务器测试不等于手机验收。
 
-插件安装由部署者在自己的客户端创建；本仓库不包含原维护者的私人插件安装链接。
+私人插件：[openGym 私人训练助手](https://chatgpt.com/plugins/plugin_asdk_app_6ad091fead4c8191a2224393bc3d0e0e)。仅本人目录，没有发布公共市场。
 
 2026-10-18：v0.4.0 新增一次性注册链接、[朋友接入说明](https://gym.example.com/api/plugin/connect)、`get_profile` 当前连接账号识别和写入归属检查，MCP 共十四个工具。多人使用的账号隔离、独立 ChatGPT 账号接入与双账号测试见 [多用户 Plugin](MULTI_USER_PLUGIN.md)。部署记录见 OPERATIONS.md；个人目录链接不代表朋友已获得安装权限。
 

@@ -1,0 +1,96 @@
+/* Hallmark · existing OpenGym system · compact intake ledger
+ * Pre-emit critique: Philosophy 4 · Hierarchy 5 · Execution 4 · Specificity 5 · Restraint 5 · Variety 4 */
+.nutrition-page{min-width:0}
+.nutrition-page .nutrition-section-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px}
+.nutrition-page .nutrition-card-title{flex-shrink:0;min-width:0;gap:8px}
+.nutrition-page .nutrition-card-title h2{margin:0;white-space:nowrap}
+.nutrition-page .nutrition-card-title>.icn{color:var(--acc);flex-shrink:0}
+.nutrition-page .btn{width:auto;white-space:nowrap;flex-shrink:0}
+.nutrition-page .nutrition-energy{margin-top:4px}
+.nutrition-trend-summary{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px;margin:20px 0 12px}
+.nutrition-trend-summary>span:first-child{width:100%}
+.nutrition-trend-summary>strong{font-size:28px;letter-spacing:-.025em;font-variant-numeric:tabular-nums}
+.nutrition-trend-summary small,.nutrition-goals small,.food-library-nutrients small,.nutrition-week-row small{font-size:12px;color:var(--label-2);font-weight:400}
+.nutrition-weekly{border-top:var(--hair) solid var(--sep);margin-top:12px}
+.nutrition-weekly summary{display:flex;justify-content:space-between;align-items:center;min-height:48px;cursor:pointer;font-size:14px;font-weight:600;list-style:none}
+.nutrition-weekly summary::-webkit-details-marker{display:none}
+.nutrition-weekly[open] summary>.icn{transform:rotate(180deg)}
+.nutrition-week-list{max-height:300px;overflow-y:auto}
+.nutrition-week-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 16px;padding:12px 0;border-top:var(--hair) solid var(--sep);font-size:13px;font-variant-numeric:tabular-nums}
+.nutrition-week-row>span{grid-column:1/-1;font-size:11px}
+.nutrition-footnote{line-height:1.6;margin-bottom:0}
+.nutrition-meal-heading{flex-wrap:wrap;gap:8px}
+.nutrition-meal-heading>strong{display:flex;gap:8px;align-items:center}
+.nutrition-meal-heading .icn{color:var(--label-2)}
+.nutrition-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:12px}
+.nutrition-page .nutrition-actions>.btn{flex:0 0 auto}
+.nutrition-library-link{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;text-align:start;min-height:44px;color:var(--label)}
+.nutrition-library-link:active{opacity:.65}
+.nutrition-library-count{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:13px;color:var(--label-2)}
+.nutrition-goals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.nutrition-goals>div{display:flex;flex-direction:column;gap:6px}
+.nutrition-goals strong{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.nutrition-page .searchf{margin-bottom:16px}
+.nutrition-page .searchf .field{border:1px solid var(--sep);min-height:48px;background:var(--surface-2)}
+.nutrition-page .searchf .field::placeholder{color:var(--label-2)}
+.food-library-tabs{margin-bottom:16px}
+.food-library-item{padding:20px 0;border-top:var(--hair) solid var(--sep)}
+.food-library-item:last-child{padding-bottom:0}
+.food-library-name{display:flex;flex-wrap:wrap;align-items:center;gap:8px;overflow-wrap:anywhere}
+.food-library-info{min-width:0}
+.food-library-info p{margin:6px 0;overflow-wrap:anywhere}
+.food-library-nutrients{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 16px;margin-top:12px;font-size:12px;color:var(--label-2)}
+.food-library-nutrients>strong{font-size:20px;color:var(--label);font-variant-numeric:tabular-nums}
+.food-library-nutrients b{font-weight:500;color:var(--label)}
+@media(max-width:414px){.nutrition-page .nutrition-section-head{align-items:flex-start}.nutrition-page .nutrition-section-head>.btn{font-size:13px}.nutrition-page .nutrition-card-title h2{font-size:17px}.nutrition-library-link{flex-wrap:wrap}.nutrition-page .nutrition-energy-number strong{font-size:42px}}
+
+.nutrition-controls{margin-top:16px;min-width:0}
+.nutrition-controls .seg-range{width:100%}
+.nutrition-macro-label>.icn{color:var(--nutrient-color);font-size:16px;flex-shrink:0}
+
+.nutrition-controls .seg-range button{white-space:nowrap;padding-inline:6px;font-size:12px}
+.nutrition-macro-label>span{min-width:0;overflow-wrap:anywhere}
+@media(max-width:414px){.nutrition-macros .nutrition-macro-label{white-space:normal;align-items:flex-start;min-height:30px}}
+
+.nutrition-metric-scroll{overflow-x:auto;margin-top:12px;padding-block:6px}
+.nutrition-controls .nutrition-metric{margin:0;min-width:max(100%,calc(var(--n) * 7em));font-size:12px}
+.nutrition-controls .seg button{white-space:nowrap;padding-inline:4px;font-size:12px}
+
+/* Hallmark · component: nutrition targets · existing OpenGym tokens
+ * Pre-emit critique: P4 H5 E4 S5 R5 V4. A single reference line; quiet excess detail. */
+:root{--nutrition-excess:color-mix(in srgb,var(--red) 78%,var(--label));--nutrition-excess-stripe:color-mix(in srgb,var(--nutrition-excess) 78%,var(--surface-3));--nutrition-met:var(--acc)}
+:root[data-theme="light"]{--nutrition-excess:color-mix(in srgb,var(--red) 70%,var(--label));--nutrition-met:color-mix(in srgb,var(--acc-2) 90%,var(--label))}
+.nutrition-date-nav{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:8px;margin-bottom:8px}
+.nutrition-date-nav>.btn{width:44px;min-height:44px;padding:0;justify-content:center}
+.nutrition-date-nav .date-picker{margin:0;justify-content:center;gap:6px}
+.nutrition-date-nav .date-picker>span{display:none}
+.nutrition-date-nav .date-picker .field{flex:0 1 auto;max-width:100%;font-size:14px;padding-inline:8px}
+.nutrition-date-nav .btn:disabled{opacity:.3;cursor:default}
+.nutrition-date-nav .btn:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.nutrition-day-boundary{margin:0 0 20px;font-size:11px;line-height:1.6}
+.nutrition-trend-reference{display:flex;align-items:center;gap:8px;margin:16px 0 8px;line-height:1.5;font-size:12px}
+.nutrition-trend-reference::before{content:"";width:20px;border-top:1px dashed var(--label-2);flex:none}
+.nutrition-trend.nutrition-trend-chart{display:flex;flex-direction:column;gap:8px}
+.nutrition-trend-values,.nutrition-trend-plot,.nutrition-trend-dates{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px;text-align:center;min-width:0}
+.nutrition-trend-plot{position:relative;height:100px}
+.nutrition-trend-plot::after{content:"";position:absolute;inset-inline:0;bottom:0;border-top:var(--hair) solid var(--sep);pointer-events:none}
+.nutrition-trend-plot>.nutrition-trend-day{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:0}
+.nutrition-trend-value{line-height:16px;white-space:nowrap}
+.nutrition-trend-plot .nutrition-trend-track{position:relative;height:100%;border:0}
+.nutrition-trend-plot>.nutrition-trend-goal{position:absolute;inset-inline:0;bottom:calc(var(--nutrition-goal-position) * 100%);height:0;z-index:1;pointer-events:none;opacity:.65}
+.nutrition-trend-goal::before{content:"";position:absolute;inset-inline:0;top:0;border-top:1px dashed var(--label-2);transform:translateY(-.5px)}
+.nutrition-trend-bar{position:relative;overflow:hidden}
+.nutrition-trend-excess,.nutrition-progress-excess{background:repeating-linear-gradient(135deg,var(--nutrition-excess) 0 3px,var(--nutrition-excess-stripe) 3px 5px)}
+.nutrition-trend-excess{position:absolute;top:0;inset-inline:0}
+.nutrition-goal-progress{margin-top:10px;min-width:0}
+.nutrition-progress-track{position:relative;height:5px;border-radius:3px;isolation:isolate}
+.nutrition-progress-track .nutrition-progress{height:5px;margin:0}
+.nutrition-progress-excess{position:absolute;inset-block:0;inset-inline-end:0;border-start-end-radius:3px;border-end-end-radius:3px;pointer-events:none}
+.nutrition-progress-goal{position:absolute;top:-2px;bottom:-2px;border-inline-start:2px solid var(--surface);transform:translateX(-1px);pointer-events:none}
+.nutrition-goal-comparison{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 10px;margin-top:7px;font-size:11px;line-height:1.5;color:var(--label-2);font-variant-numeric:tabular-nums}
+.nutrition-goal-percent{display:flex;align-items:center;gap:3px;white-space:nowrap;font-weight:600}
+.nutrition-goal-progress[data-state="over"] .nutrition-goal-percent{color:var(--nutrition-excess)}
+.nutrition-goal-progress[data-state="met"] .nutrition-goal-percent{color:var(--nutrition-met)}
+.nutrition-macro .nutrition-goal-comparison{flex-direction:column;gap:3px}
+.nutrition-goal-comparison .icn{font-size:12px}
+@media(prefers-reduced-motion:no-preference){.nutrition-date-nav>.btn:active:not(:disabled){transform:scale(.95)}}

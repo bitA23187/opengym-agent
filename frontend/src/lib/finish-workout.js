@@ -69,6 +69,8 @@ export function buildCompletedWorkout(active, { end = Date.now(), prs = [], snap
   const entries = (active?.entries || []).map(entry => {
     const completed = {
       id: entry.id,
+      ...(entry.measurements?{measurements:structuredClone(entry.measurements)}:{}),
+      ...(entry.entry_id?{entry_id:entry.entry_id}:{}),...(entry.activity?{activity:structuredClone(entry.activity)}:{}),
       // Only what was logged — the live-session bookkeeping on a row stays behind (finishedRow).
       sets: (entry.sets || []).map(finishedRow),
       topW: bestWeightForEntry(entry) || null,
@@ -98,7 +100,7 @@ export function buildCompletedWorkout(active, { end = Date.now(), prs = [], snap
       if (entry.notePin) completed.notePin = true
     }
     return completed
-  }).filter(entry => entry.sets.some(hasCompletedWork))
+  }).filter(entry => entry.activity?.type==='custom'?entry.measurements?.observations?.length:entry.activity?.type==='climbing'?entry.activity.routes?.length:entry.sets.some(hasCompletedWork))
   // An exercise left without a single set drops out above, and its partner is then a superset
   // of one. cleanupSg clears the tag it no longer shares with a neighbour; the entries are this
   // function's own copies, so the running session is left alone.

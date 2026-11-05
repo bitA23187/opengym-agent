@@ -46,6 +46,7 @@ import Admin from './views/Admin.jsx'
 import CoachChat from './views/CoachChat.jsx'
 import Measurements from './views/Measurements.jsx'
 import Nutrition from './views/Nutrition.jsx'
+import { FoodLibrary } from './components/FoodLibrary.jsx'
 import DailyHealth from './views/DailyHealth.jsx'
 import CoachIntake from './views/CoachIntake.jsx'
 import CoachSetup from './views/CoachSetup.jsx'
@@ -222,6 +223,7 @@ function Shell() {
               <Route path="/progress-photos" element={<ProgressPhotos />} />
               <Route path="/daily-health" element={<DailyHealth />} />
               <Route path="/nutrition" element={<Nutrition />} />
+              <Route path="/nutrition/foods" element={<FoodLibrary />} />
               <Route path="/measurements" element={<Measurements />} />
               <Route path="/settings" element={<SettingsRoute />} />
               <Route path="/settings/:page" element={<SettingsRoute />} />

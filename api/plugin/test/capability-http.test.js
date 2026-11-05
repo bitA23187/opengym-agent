@@ -23,7 +23,7 @@ test('HTTP/OAuth: body scopes stay separate, metric drafts are account/grant bou
     const verifier=randomBytes(32).toString('base64url');
     const r=await req(prefix+'/oauth/authorize?'+new URLSearchParams({client_id:clientId,redirect_uri:redirect,response_type:'code',code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256',scope,state:'test',resource}));assert.equal(r.status,302);
     const location=r.headers.get('location'),page=await(await req(location,{headers:{cookie:uid}})).text();
-    if(scope.includes('body:'))assert.ok(page.includes('体重、围度'));
+    if(scope.includes('body:'))assert.ok(page.includes('围度与身体测量（不含体重）'));
     const allowed=await post(prefix+'/consent',{request:new URL(location,origin).searchParams.get('request'),nonce:page.match(/name="nonce" value="([^"]+)/)[1],decision:'allow'},{cookie:uid,origin});assert.equal(allowed.status,303);
     const receipt=await req(allowed.headers.get('location'),{headers:{cookie:uid}});assert.equal(receipt.status,200);
     const callback=new URL((await receipt.text()).match(/id="return-to-chatgpt" href="([^"]+)/)[1].replaceAll('&amp;','&'));
@@ -39,11 +39,11 @@ test('HTTP/OAuth: body scopes stay separate, metric drafts are account/grant bou
   const registration=await req(prefix+'/oauth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({redirect_uris:[redirect],token_endpoint_auth_method:'none',grant_types:['authorization_code','refresh_token'],response_types:['code']})});
   assert.equal(registration.status,201);
   const a=await authorize('alice','body:read body:write',(await registration.json()).client_id),b=await authorize('bob','body:read body:write');
-  assert.equal(value(await call('get_body_metrics',range,a.access_token)).bodyweight[0].weight,80);assert.equal(value(await call('get_body_metrics',range,b.access_token)).bodyweight[0].weight,65);
+  assert.equal(Object.hasOwn(value(await call('get_body_metrics',range,a.access_token)),'bodyweight'),false);assert.equal(Object.hasOwn(value(await call('get_body_metrics',range,b.access_token)),'bodyweight'),false);
   assert.ok((await call('get_current_plan',{},a.access_token)).isError);
-  const p=value(await call('preview_body_update',{unit:'kg',timezone:'Asia/Taipei',entries:[{date:'2026-10-14',weight:79,measurements:{waist:81}}]},a.access_token)),save={draft_id:p.draft_id,confirmed:true,confirmation_summary:p.confirmation_summary};
+  const p=value(await call('preview_body_update',{unit:'kg',timezone:'Asia/Taipei',entries:[{date:'2026-10-14',measurements:{waist:81}}]},a.access_token)),save={draft_id:p.draft_id,confirmed:true,confirmation_summary:p.confirmation_summary};
   assert.ok((await call('save_body_update',save,b.access_token)).isError);assert.ok((await call('save_body_update',save,old.access_token)).isError);assert.equal(states.alice.bodyweight[0].w,80);
-  assert.equal(value(await call('save_body_update',save,a.access_token)).saved,true);assert.equal(states.alice.bodyweight[0].w,79);assert.equal(states.bob.bodyweight[0].w,65);
+  assert.equal(value(await call('save_body_update',save,a.access_token)).saved,true);assert.equal(states.alice.bodyweight[0].w,80);assert.equal(states.bob.bodyweight[0].w,65);
   const context=value(await call('preview_training_update',{date:'2026-10-14',context_notes:[{kind:'limitation',text:'User-reported discomfort; example fixture'}]},old.access_token));
   const reduced=await post(prefix+'/oauth/token',{grant_type:'refresh_token',client_id:client,refresh_token:old.refresh_token,resource,scope:'plan:read training:write'});assert.equal(reduced.status,200);const narrow=await reduced.json();
   const saveContext={draft_id:context.draft_id,confirmed:true,confirmation_summary:context.confirmation_summary};

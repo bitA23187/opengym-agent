@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from '../store/useStore.js'
 import { api } from '../lib/api.js'
+import { cachedRead, invalidateRead, refreshRead } from '../lib/read-cache.js'
 import { t } from '../lib/i18n.js'
 import { heartWorkoutKey, heartChartSegments } from '../lib/heart-rate.js'
 import { Button } from './ui.jsx'
@@ -29,18 +30,18 @@ export default function HeartRateSection({ w }) {
   return user ? <HeartRatePanel key={user.id + ':' + heartWorkoutKey(w)} w={w} user={user} /> : null
 }
 function HeartRatePanel({ w, user }) {
-  const [data, setData] = useState(null)
+  const key = heartWorkoutKey(w)
+  const path = '/api/heart-rate/workout?workout_id=' + encodeURIComponent(key)
+  const [data, setData] = useState(() => cachedRead(user, path))
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const refreshVersion = useRef(0)
-  const key = heartWorkoutKey(w)
-  const query = '?workout_id=' + encodeURIComponent(key)
   const refresh = useCallback(async () => {
     if (!user) return
     const version = ++refreshVersion.current
     try {
-      const record = await api('/api/heart-rate/workout' + query)
+      const record = await refreshRead(user, path, () => api(path))
       if (version !== refreshVersion.current) return
       setData(record); setError('')
       if (record.workoutTimeSynced) {
@@ -48,7 +49,7 @@ function HeartRatePanel({ w, user }) {
         if (local && (local.start !== record.window.start || local.end !== record.window.end)) await useStore.getState().pullState()
       }
     } catch (e) { if (version === refreshVersion.current) setError(e.status === 404 ? t('Sync this workout to the server before adding heart rate.') : e.message) }
-  }, [user?.id, query, key])
+  }, [user, path, key])
   useEffect(() => { refresh(); return () => { ++refreshVersion.current } }, [refresh])
   useEffect(() => {
     const resume = () => { if (document.visibilityState !== 'hidden') refresh() }
@@ -60,10 +61,12 @@ function HeartRatePanel({ w, user }) {
     try { await fn() } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   const clear = () => action(async () => {
-    await api('/api/heart-rate/workout' + query, { method: 'DELETE' }); setDeleting(false); await refresh()
+    await api(path, { method: 'DELETE' })
+    invalidateRead(user, path)
+    setData(null); setDeleting(false); await refresh()
   })
   const exportData = () => action(async () => {
-    const result = await api('/api/heart-rate/export' + query)
+    const result = await api(path.replace('/workout?', '/export?'))
     const url = URL.createObjectURL(new Blob([JSON.stringify(result)], { type: 'application/json' }))
     const a = document.createElement('a'); a.href = url; a.download = `heart-rate-${w.d}.json`; a.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
@@ -71,8 +74,8 @@ function HeartRatePanel({ w, user }) {
   const hasSamples = data?.samples?.length > 0
   const metrics = data?.metrics
   const setEvents = metrics?.logged_set_events ?? data?.logged_set_events ?? []
-  const duration = seconds => Number.isFinite(seconds) ? t('{0} min', Math.round(seconds / 6) / 10) : '—'
-  const number = value => Number.isFinite(value) ? Math.round(value * 10) / 10 : '—'
+  const duration = seconds => Number.isFinite(seconds) ? t('{0} min', Math.round(seconds / 6) / 10) : '–'
+  const number = value => Number.isFinite(value) ? Math.round(value * 10) / 10 : '–'
   return <section aria-label={t('Training heart rate')} style={{ margin: '16px 0', padding: '14px 0', borderTop: '1px solid var(--sep)', borderBottom: '1px solid var(--sep)' }}>
     <div className="row between"><strong>{t('Training heart rate')}</strong><span className="small muted">Apple 健康</span></div>
     {hasSamples ? <>
@@ -89,10 +92,10 @@ function HeartRatePanel({ w, user }) {
           <div><strong>{duration(metrics.workout_elapsed_seconds)}</strong><div className="small muted">{t('Workout elapsed time')}</div></div>
           <div><strong>{duration(metrics.linked_window_seconds)}</strong><div className="small muted">{t('Linked workout time')}</div></div>
           <div><strong>{duration(metrics.observed_seconds)}</strong><div className="small muted">{t('Observed heart rate time')}</div></div>
-          <div><strong>{Number.isFinite(metrics.observation_ratio) ? Math.round(metrics.observation_ratio * 100) + '%' : '—'}</strong><div className="small muted">{t('Estimated time coverage')}</div></div>
-          <div><strong>{metrics.gaps_over_threshold ?? '—'}</strong><div className="small muted">{t('Gaps over two minutes')}</div></div>
+          <div><strong>{Number.isFinite(metrics.observation_ratio) ? Math.round(metrics.observation_ratio * 100) + '%' : '–'}</strong><div className="small muted">{t('Estimated time coverage')}</div></div>
+          <div><strong>{metrics.gaps_over_threshold ?? '–'}</strong><div className="small muted">{t('Gaps over two minutes')}</div></div>
           <div><strong>{duration(metrics.largest_gap_seconds)}</strong><div className="small muted">{t('Largest sample gap')}</div></div>
-          <div><strong>{metrics.logged_set_events_count ?? '—'}</strong><div className="small muted">{t('Timestamped set logs')}</div></div>
+          <div><strong>{metrics.logged_set_events_count ?? '–'}</strong><div className="small muted">{t('Timestamped set logs')}</div></div>
           <div><strong>{duration(metrics.longest_set_log_interval_seconds)}</strong><div className="small muted">{t('Longest interval between set logs')}</div></div>
         </div>
         <p className="small muted">{t('Coverage estimates time between samples no more than two minutes apart within linked workout windows. It does not measure sensor accuracy or true data completeness.')}</p>

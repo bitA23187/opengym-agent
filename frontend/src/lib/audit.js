@@ -14,6 +14,7 @@ import { dateLocale } from './i18n-core.js'
 export const auditCat = ev => String(ev || '').split('.')[0]
 
 const LABELS = {
+  'auth.account.delete': 'Deleted their own account',
   'auth.login.ok': 'Signed in',
   'auth.login.fail': 'Sign-in failed',
   'auth.register.ok': 'Created a profile',
@@ -57,12 +58,15 @@ const LABELS = {
   'admin.user.enable': 'Re-enabled an account',
   'admin.user.delete': 'Deleted an account',
   'admin.password.reset': 'Issued a password reset code',
+  'admin.role.grant': 'Made someone an admin',
+  'admin.role.revoke': 'Removed someone as admin',
+  'admin.owner.transfer': 'Handed the owner role on',
   'admin.invite.create': 'Created an invite code',
   'admin.invite.revoke': 'Revoked an invite code',
   'admin.audit.clear': 'Cleared the activity log',
   // FIRST_USER_ADMIN=1: the first profile on a fresh instance is made admin as it signs up.
   'admin.first-user': 'Became admin as the first profile',
-  'admin.denied': 'Blocked from the admin dashboard',
+  'admin.denied': 'Blocked from an admin action',
   // Photos and videos of custom exercises: "Reset everything" clearing a profile's files, and the
   // upload or clean-up throttle pausing a profile (`msg` says which).
   'media.sweep': 'Cleared unused photos and videos',
@@ -112,7 +116,9 @@ const ACTS = {
   'password-remove': 'removing the password',
   'passkey-add': 'adding a passkey',
   'passkey-remove': 'removing a passkey',
-  'device-link': 'making a one-time code for another device'
+  'device-link': 'making a one-time code for another device',
+  'pair': 'pairing the mobile app',
+  'account-delete': 'deleting their account'
 }
 export const auditAct = act => ACTS[act] || (act ? String(act) : '')
 

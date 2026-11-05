@@ -50,5 +50,5 @@ export function createDailyHealth({dataDir,readSession,readBody,json,getUser}) {
     'GET /api/daily-health/export':wrap(async(req,res)=>{json(res,200,read(file(session(req).id))||{},{'Cache-Control':'no-store','Content-Disposition':'attachment; filename="opengym-daily-health.json"'})}),
     'DELETE /api/daily-health':wrap(async(req,res)=>{const u=session(req);fs.rmSync(file(u.id),{force:true});json(res,200,{ok:true})}),
   };
-  return {routes,summary,removeUser(uid){revoke(uid);fs.rmSync(dir(uid),{recursive:true,force:true})}};
+  return {routes,summary,authenticateUpload:credentials.authenticate,removeUser(uid){revoke(uid);fs.rmSync(dir(uid),{recursive:true,force:true})}};
 }

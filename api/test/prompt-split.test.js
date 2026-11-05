@@ -1,3 +1,4 @@
+import './fixture-clock.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildPrompt, buildPromptParts, taskOf } from '../coach/core/prompt.js';

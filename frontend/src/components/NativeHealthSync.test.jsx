@@ -3,7 +3,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import NativeHealthSync from './NativeHealthSync.jsx'
-import { healthKitStatus, enableHealthKit, disableHealthKit, onHealthKitChange } from '../lib/healthkit.js'
+import { healthKitStatus, enableHealthKit, syncHealthKit, disableHealthKit, onHealthKitChange } from '../lib/healthkit.js'
 import { useUI } from '../store/useUI.js'
 vi.mock('../lib/healthkit.js', () => ({ healthKitStatus: vi.fn(), enableHealthKit: vi.fn(), syncHealthKit: vi.fn(), disableHealthKit: vi.fn(), onHealthKitChange: vi.fn() }))
 vi.mock('../lib/i18n.js', () => ({ t: (s, ...args) => s.replace(/\{(\d+)\}/g, (_, i) => args[i]) }))
@@ -106,4 +106,22 @@ it('shows state failures instead of hiding the error with the unavailable card',
   healthKitStatus.mockRejectedValue(new Error('protected file'))
   await render()
   expect(host.querySelector('[role="alert"]').textContent).toBe('Could not read iPhone sync status.')
+})
+
+it('shows relative successful-sync age, updates the label without bridge polling and retains it on failure', async () => {
+  vi.setSystemTime(new Date('2026-10-30T04:00:00Z'))
+  healthKitStatus.mockResolvedValue({ available: true, enabled: true, lastSuccess: '2026-10-30T03:55:00Z' })
+  await render()
+  expect(host.querySelector('.native-health-last-check').textContent).toContain('5 minutes ago')
+  await act(async () => vi.advanceTimersByTimeAsync(60000))
+  expect(host.querySelector('.native-health-last-check').textContent).toContain('6 minutes ago')
+  expect(healthKitStatus).toHaveBeenCalledOnce()
+  healthKitStatus.mockResolvedValue({ available: true, enabled: true, lastSuccess: '2026-10-30T04:01:00Z' })
+  await act(async () => button('Sync now').click())
+  expect(syncHealthKit).toHaveBeenCalledWith('alice')
+  expect(host.querySelector('.native-health-last-check').textContent).toContain('now')
+  healthKitStatus.mockResolvedValue({ available: true, enabled: true, lastSuccess: '2026-10-30T04:01:00Z', error: 'Health sync incomplete; unlock iPhone, check access and retry.' })
+  await act(async () => button('Sync now').click())
+  expect(host.querySelector('[role="alert"]').textContent).toContain('Health sync incomplete')
+  expect(host.querySelector('.native-health-last-check').textContent).toContain('now')
 })

@@ -18,6 +18,14 @@ export function createHealthUploadCredentials({dataDir,getUser,now=Date.now}) {
   const connections=user=>roots.map(root=>({root,c:read(connection(root,user.id))})).filter(({c})=>valid(c,user));
   function revoke(uid){for(const root of roots){const c=read(connection(root,uid));if(c?.keyHash)fs.rmSync(key(root,c.keyHash),{force:true});fs.rmSync(connection(root,uid),{force:true})}}
   return {
+    removeUser(uid){
+      revoke(uid);
+      if(fs.existsSync(shortcutDir)) for(const name of fs.readdirSync(shortcutDir)) {
+        if(!/^[a-f0-9]{64}\.json$/.test(name))continue;
+        const file=path.join(shortcutDir,name);
+        if(read(file)?.uid===uid)fs.rmSync(file,{force:true});
+      }
+    },
     status(user){const active=connections(user);return {connected:!!active.length,expiresAt:null,credentialCount:active.length,lifetimeDays:null}},
     issue(user){revoke(user.id);const token='ogh_'+crypto.randomBytes(32).toString('base64url'),c={uid:user.id,sv:user.sv||0,keyHash:hash(token),expiresAt:null};write(key(roots[0],c.keyHash),c);write(connection(roots[0],user.id),c);return {token,expiresAt:c.expiresAt,lifetimeDays:null}},
     issueShortcut(user){

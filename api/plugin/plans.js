@@ -1,8 +1,12 @@
+import {directSaveUsers,permitsDirectSave,directSaveSource} from './save-policy.js';
 import { z } from 'zod';
 import { LIB_BY_ID } from '../coach/core/library.js';
 import { hash, random } from './store.js';
-import { planSnapshot } from './state.js';
+import { planVersionMatches } from './state.js';
 import { trainingContext } from './context.js';
+import { scheduleStatus } from '../../frontend/src/lib/schedule-status.js';
+import { saveRotation,stopPass } from '../../frontend/src/lib/rotation.js';
+import { isoDate,timeZone,localToday,versionReadShape,versionSummary } from './reads-schema.js';
 import { cleanupSg } from '../../frontend/src/lib/history.js';
 const advancedFields={reps_min:z.number().int().min(1).max(100),reps_max:z.number().int().min(1).max(100),
   sets_max:z.number().int().min(1).max(12),increment:z.number().positive().max(100),deload_factor:z.number().min(0.5).max(0.95),
@@ -28,6 +32,7 @@ const exercise = z.object({
   if (e.mode === 'cardio' && e.minutes == null) ctx.addIssue({ code: 'custom', message: 'minutes required' });
 });
 export const planShape = {
+  review_questions:z.array(z.string().trim().min(1).max(500)).max(20).optional(),
   unit: z.enum(['kg', 'lb']),
   routines: z.array(z.object({ name: z.string().trim().min(1).max(80),
     exercises: z.array(exercise).min(1).max(25) }).strict()).min(1).max(8),
@@ -83,11 +88,15 @@ const editOperation = z.discriminatedUnion('type', [
   z.object({type:z.literal('set_superset'),indexes:z.array(z.number().int().min(0).max(49)).min(1).max(10),enabled:z.boolean(),name:z.string().trim().max(80).optional(),rest_seconds:z.number().int().min(0).max(900).optional()}).strict(),
 ]);
 const routineEdits = z.object({routine_id:z.string().min(1).max(64),operations:z.array(editOperation).min(1).max(32)}).strict();
-export const planEditShape={routine_id:z.string().min(1).max(64).optional(),operations:z.array(editOperation).min(1).max(32).optional(),
+const scheduleSchema=z.object({mode:z.enum(['week','rotation']),timezone:timeZone,starts_on:isoDate,
+  routine_ids:z.array(z.string().min(1).max(64)).min(1).max(50).refine(ids=>new Set(ids).size===ids.length,'Routine IDs must be unique').optional(),
+  label:z.string().trim().max(80).default('')}).strict().refine(v=>v.mode!=='rotation'||v.routine_ids?.length,'Rotation requires routine_ids')
+  .refine(v=>v.mode!=='week'||!v.routine_ids,'Use set_weekday operations for a fixed week');
+export const planEditShape={review_questions:planShape.review_questions,routine_id:z.string().min(1).max(64).optional(),operations:z.array(editOperation).min(1).max(32).optional(),
   routine_edits:z.array(routineEdits).min(1).max(8).optional(),training_profile:trainingProfileSchema.optional(),
-  restore_version_id:z.string().min(1).max(64).optional()};
-const planEditInput = z.object(planEditShape).strict().refine(v=>v.operations||v.routine_edits||v.training_profile||v.restore_version_id,'Provide edits, a training profile or a restore version')
-  .refine(v=>!v.restore_version_id||(!v.operations&&!v.routine_edits&&!v.training_profile),'Restore must be previewed separately from other edits');
+  restore_version_id:z.string().min(1).max(64).optional(),schedule:scheduleSchema.optional()};
+const planEditInput = z.object(planEditShape).strict().refine(v=>v.operations||v.routine_edits||v.training_profile||v.schedule||v.restore_version_id,'Provide edits, a training profile or a restore version')
+  .refine(v=>!v.restore_version_id||(!v.operations&&!v.routine_edits&&!v.training_profile&&!v.schedule),'Restore must be previewed separately from other edits');
 
 function applySinglePlanEdit(s, parsed) {
   if (!Array.isArray(s.routines)) throw Error('Training templates are unavailable.');
@@ -208,11 +217,24 @@ function applyPlanEdits(s,input) {
   if(parsed.restore_version_id) {
     const version=(s.pluginPlanHistory||[]).find(v=>v.id===parsed.restore_version_id);
     if(!version)throw Error('Plan version not found.');
-    if(hash(JSON.stringify(planSnapshot(s)))!==version.after_hash)throw Error('Plan changed after this version; preview targeted edits instead of overwriting newer changes.');
-    return {routine_id:null,...structuredClone(version.before),restoring:true,weekChanged:true,dayPlanChanged:true,
+    if(!planVersionMatches(s,version))throw Error('Plan changed after this version; preview targeted edits instead of overwriting newer changes.');
+    return {routine_id:null,...structuredClone(version.before),restoring:true,weekChanged:true,dayPlanChanged:true,scheduleChanged:Object.hasOwn(version.before,'scheduleMode'),
       summaries:[`Undo plan version ${version.id}: ${version.summary}`,`Restore routines and schedules to the snapshot before ${version.at}. Training history and training profile stay unchanged.`]};
   }
-  let next=s, summaries=[],weekChanged=false,dayPlanChanged=false;
+  let next=structuredClone(s), summaries=[],weekChanged=false,dayPlanChanged=false;
+  if(parsed.schedule) {
+    const p=parsed.schedule;
+    next.dayPlan ||= {};
+    if(p.mode==='rotation') {
+      for(const id of p.routine_ids)if(!next.routines?.some(r=>r.id===id))throw Error('Unknown routine ID in rotation.');
+      saveRotation(next,p.routine_ids,p.label,p.starts_on,Date.now());
+      // An explicit configuration starts a fresh pass at the requested date.
+      next.queue.startsOn=p.starts_on;next.queue.since=Date.now();delete next.queue.strict;
+      next.scheduleMode='rotation';
+    } else {stopPass(next,localToday(p.timezone));next.scheduleMode='week';}
+    dayPlanChanged=true;
+    summaries.push(`Configure schedule (${p.timezone}): ${JSON.stringify({mode:p.mode,rotation:next.rotation||null,queue:next.queue||null})}.`);
+  }
   const groups=[...(parsed.operations?[{routine_id:parsed.routine_id,operations:parsed.operations}]:[]),...(parsed.routine_edits||[])];
   if(groups.reduce((n,g)=>n+g.operations.length,0)>64)throw Error('At most 64 operations per plan revision.');
   for(const group of groups) {
@@ -222,10 +244,13 @@ function applyPlanEdits(s,input) {
   }
   if(parsed.training_profile)summaries.push(`Training profile: ${JSON.stringify(s.coach?.profile||null)} → ${JSON.stringify(parsed.training_profile)}.`);
   return {routine_id:parsed.routine_id||null,routines:next.routines||[],week:next.week||{},dayPlan:next.dayPlan||{},weekChanged,dayPlanChanged,summaries,
+    scheduleChanged:!!parsed.schedule,scheduleMode:next.scheduleMode||'week',rotation:next.rotation||null,queue:next.queue||null,
     profileChanged:!!parsed.training_profile,profile:parsed.training_profile};
 }
 
-export function createPlans({ read, append }) {
+export function createPlans({ read, append, autoSaveUsers=directSaveUsers('PLAN') }) {
+  const authorization=(user,questions,eligible=true)=>({requires_user_confirmation:!(permitsDirectSave(autoSaveUsers,user.id)&&eligible&&!questions.length),source:permitsDirectSave(autoSaveUsers,user.id)&&eligible&&!questions.length?directSaveSource(autoSaveUsers):'preview_confirmation',scope:'plan'});
+  const instructions=(auth,questions,tool)=>questions.length?'Ask the review_questions and create a fresh preview after clarification. Do not save this draft.':auth.requires_user_confirmation?'Show the complete preview and obtain explicit confirmation before saving.':`Direct-save policy is enabled for this account for clear, plausible user-requested training arrangements. Review the original request, active context, exercise variants, loads, units and per-side conventions. Clarify ambiguity, suspected errors or outliers first; an empty review_questions list is not proof of clarity. Otherwise call ${tool} now with confirmed=true and the exact confirmation_summary, without another confirmation reply, then report success. Advice or a proposed plan alone is not a request to save. Host approval still applies.`;
   const drafts = new Map();
   const prune = () => { for (const [k, d] of drafts) if (d.exp <= Date.now()) drafts.delete(k); };
   return {
@@ -235,14 +260,14 @@ export function createPlans({ read, append }) {
         training_context:trainingContext(s),
         routines: (s.routines || []).map(r => ({ id: r.id, name: r.name, exercises: (r.ex||[]).map((e,index)=>({...e,index})) })),
         week: s.week || {}, speed_unit: s.speedUnit==='mph'?'mph':s.speedUnit==='kmh'?'km/h':(s.unit||'kg')==='lb'?'mph':'km/h',
-        day_overrides:s.dayPlan||{}, rotation:s.rotation||null, queue:s.queue||null, schedule_mode:s.scheduleMode||'week',
+        day_overrides:s.dayPlan||{}, rotation:s.rotation||null, queue:s.queue||null, schedule_mode:scheduleStatus(s).mode,schedule:scheduleStatus(s),
         reps_convention:'Stored reps are the total across both sides when side=true. In preview tools, reps mean each side when per_side=true.',
         training_profile:s.coach?.profile?Object.fromEntries(Object.keys(trainingProfileSchema.shape).filter(k=>s.coach.profile[k]!=null).map(k=>[k,s.coach.profile[k]])):null,
         custom_exercises: s.customEx || [] };
     },
-    versions(user) {
-      const s=read(user),fingerprint=hash(JSON.stringify(planSnapshot(s)));
-      return {revision:s._rev||0,versions:(s.pluginPlanHistory||[]).slice().reverse().map(v=>({id:v.id,at:v.at,source:v.source,revision:v.revision,summary:v.summary,can_undo:v.after_hash===fingerprint})),
+    versions(user,input={}) {
+      const p=z.object(versionReadShape).strict().parse(input),s=read(user);
+      return {revision:s._rev||0,versions:(s.pluginPlanHistory||[]).filter(v=>!p.version_id||v.id===p.version_id).slice().reverse().map(v=>({id:v.id,at:v.at,source:v.source,revision:v.revision,...versionSummary(v.summary,p.detail_level),can_undo:planVersionMatches(s,v)})),
         retention:'Last 10 Agent plan changes, up to 1 MiB. Undo only while the current plan matches that version; preview and confirm first.'};
     },
     preview(user, grant, input) {
@@ -270,18 +295,20 @@ export function createPlans({ read, append }) {
           })])
       ].join('\n');
       if(summary.length>60000)throw Error('Preview exceeds 60000 characters; split the changes.');
-      const draft = { kind:'plan_add', summary, uid: user.id, grant, routines, rev: s._rev || 0, wid: s._wid || null, exp: Date.now() + 15 * 60000, result: null };
+      const reviewQuestions=plan.review_questions||[],auth=authorization(user,reviewQuestions);
+      const draft = { kind:'plan_add', reviewQuestions, summary, uid: user.id, grant, routines, rev: s._rev || 0, wid: s._wid || null, exp: Date.now() + 15 * 60000, result: null };
       drafts.set(id, draft);
       return { draft_id: id, expires_in_seconds: 900, revision: draft.rev, unit: plan.unit,
         training_context:trainingContext(s),
         confirmation_summary: summary, adds_routines: routines, existing_routines_unchanged: true, weekly_schedule_unchanged: true,
-        instructions: 'Show this exact preview to the user. Call save_plan only after explicit confirmation, copying confirmation_summary exactly into its arguments. If host approval is blocked, report it; do not retry through another channel. Weights use the account/app convention; clarify per-hand and per-side assumptions.' };
+        review_questions:reviewQuestions,authorization:auth,instructions:instructions(auth,reviewQuestions,'save_plan') };
     },
     save(user, grant, id, confirmed, summary) {
       prune();
       const d = drafts.get(id);
       if (!d || d.kind!=='plan_add' || d.uid !== user.id || d.grant !== grant) throw Error('Preview expired or belongs to a different authorization; preview again.');
       if (!confirmed) throw Error('Explicit user confirmation is required.');
+      if (d.reviewQuestions?.length) throw Error('Resolve review_questions and create a fresh preview before saving.');
       if (summary !== d.summary) throw Error('The confirmation summary must exactly match the preview; preview again if it is unavailable.');
       if (d.result) return { ...d.result, already_saved: true };
       d.result = append(user, d);
@@ -293,20 +320,23 @@ export function createPlans({ read, append }) {
       const s=read(user), edit=applyPlanEdits(s,input), id=random();
       const summary=[`Modify the authenticated openGym plan at revision ${s._rev||0}, weight unit ${s.unit||'kg'}. Changes take effect immediately after saving. No workout history, body weight or account data will be changed.`,...edit.summaries].join('\n');
       if(summary.length>60000)throw Error('Preview exceeds 60000 characters; split the changes.');
-      const draft={kind:'plan_edit',summary,uid:user.id,grant,routine_id:edit.routine_id,routines:edit.routines,week:edit.week,dayPlan:edit.dayPlan,
+      const reviewQuestions=input.review_questions||[],auth=authorization(user,reviewQuestions,!edit.restoring&&!edit.profileChanged);
+      const draft={kind:'plan_edit',reviewQuestions,summary,uid:user.id,grant,routine_id:edit.routine_id,routines:edit.routines,week:edit.week,dayPlan:edit.dayPlan,
+        scheduleChanged:edit.scheduleChanged,scheduleMode:edit.scheduleMode,rotation:edit.rotation,queue:edit.queue,
         weekChanged:edit.weekChanged,dayPlanChanged:edit.dayPlanChanged,profileChanged:edit.profileChanged,profile:edit.profile,restoring:edit.restoring,
         rev:s._rev||0,wid:s._wid||null,exp:Date.now()+15*60000,result:null};
       drafts.set(id,draft);
       return {draft_id:id,expires_in_seconds:900,revision:draft.rev,confirmation_summary:summary,changes:edit.summaries,
         training_context:trainingContext(s),
-        resulting_plan:{routines:edit.routines,week:edit.week,day_overrides:edit.dayPlan},
-        instructions:'Show the complete preview and ask the user to confirm. Save only this draft after explicit confirmation, copying confirmation_summary exactly. Routine exercise indexes refer to list order when each operation runs.'};
+        resulting_plan:{schedule_mode:edit.scheduleMode,rotation:edit.rotation,queue:edit.queue,routines:edit.routines,week:edit.week,day_overrides:edit.dayPlan},
+        review_questions:reviewQuestions,authorization:auth,instructions:instructions(auth,reviewQuestions,'save_plan_edit')+' Routine exercise indexes refer to list order when each operation runs.'};
     },
     saveEdit(user, grant, id, confirmed, summary, appendEdit) {
       prune();
       const d=drafts.get(id);
       if(!d||d.kind!=='plan_edit'||d.uid!==user.id||d.grant!==grant)throw Error('Preview expired or belongs to a different authorization; preview again.');
       if(!confirmed)throw Error('Explicit user confirmation is required.');
+      if(d.reviewQuestions?.length)throw Error('Resolve review_questions and create a fresh preview before saving.');
       if(summary!==d.summary)throw Error('The confirmation summary must exactly match the preview; preview again if it is unavailable.');
       if(d.result)return {...d.result,already_saved:true};
       d.result=appendEdit(user,d);return d.result;

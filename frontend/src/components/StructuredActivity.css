@@ -1,0 +1,25 @@
+/* Optional workout observations share the sheet's typography and inset rules. */
+.activity-details { margin: 16px 0; min-width: 0; }
+.activity-details-title { margin: 0 0 8px; color: var(--label-2); font-size: 13px; font-weight: 400; }
+.activity-detail-entry { padding: 12px 0; border-bottom: var(--hair) solid var(--sep); }
+.activity-detail-name { font-size: 14px; font-weight: 600; margin-bottom: 8px; overflow-wrap: anywhere; }
+.activity-observation { display: grid; grid-template-columns: minmax(56px,auto) minmax(0,1fr); gap: 12px; margin-top: 8px; font-size: 13px; line-height: 1.6; }
+.activity-set-label { color: var(--label-2); font-size: 12px; font-variant-numeric: tabular-nums; }
+.activity-observation-values { min-width: 0; overflow-wrap: anywhere; }
+.activity-observation-values p { margin: 0; }
+.activity-route { display: flex; flex-direction: column; gap: 3px; padding: 6px 0; font-size: 13px; overflow-wrap: anywhere; }
+.activity-route p { margin: 0; }
+.activity-route-grade { display: inline-block; margin-inline-start: 8px; font-weight: 600; }
+.activity-recording-details summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; color: var(--label-2); font-size: 13px; cursor: pointer; list-style: none; border-radius: var(--r-sm); }
+.activity-recording-details summary::-webkit-details-marker { display: none; }
+.activity-recording-details summary:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
+.activity-recording-details summary:hover { color: var(--label); }
+.activity-details-chevron { flex-shrink: 0; width: 14px; height: 14px; transition: transform var(--fast) var(--ease); }
+.activity-recording-details[open] .activity-details-chevron { transform: rotate(90deg); }
+.activity-details-help { margin: 0 0 8px; line-height: 1.6; }
+.activity-source-entry { padding: 8px 0; border-top: var(--hair) solid var(--sep); }
+.activity-source-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.activity-source-heading strong { min-width: 0; font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.activity-source-heading .btn { flex-shrink: 0; }
+.activity-source-line { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 4px 0; color: var(--label-2); font-size: 12px; line-height: 1.6; }
+@media (prefers-reduced-motion: reduce) { .activity-details-chevron { transition: none; } }

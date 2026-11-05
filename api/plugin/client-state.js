@@ -3,7 +3,7 @@ import { highestStamp } from '../../frontend/src/lib/sync-merge.js';
 // Official clients sync workouts and existing app settings. These extension-only fields
 // belong to the Agent service; a whole-document phone push cannot edit or erase them.
 // Retain legacy single-session snapshots as inert data rather than deleting user data.
-export const PLUGIN_FIELDS=['trainingNotes','pluginPlanHistory','pluginTrainingHistory','sessionAdjustments'];
+export const PLUGIN_FIELDS=['trainingLogs','trainingNotes','pluginPlanHistory','pluginTrainingHistory','sessionAdjustments'];
 export function preservePluginState(current,incoming) {
   if(!incoming||typeof incoming!=='object'||Array.isArray(incoming))return false;
   const reset=Number(incoming.resetAt||0)>Number(current?.resetAt||0);

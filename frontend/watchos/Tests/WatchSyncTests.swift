@@ -49,6 +49,12 @@ private final class Health: WatchHealthReading {
     var sleepPages = [1]
     var deletions = 0
     var onPage: (() -> Void)?
+    var workout: Data?
+    var workoutReads = 0
+    var onWorkout: (() -> Void)?
+    func workoutBody(id: String, day: DateInterval, since: Date) async throws -> Data? {
+        workoutReads += 1; onWorkout?(); return workout
+    }
     func authorize() async throws { authorized += 1 }
     func earliestDate() async -> Date { Date().addingTimeInterval(-10 * 86400) }
     func inspect(since: Date) async throws -> [WatchMetricSummary] {
@@ -76,12 +82,28 @@ private final class Transport: WatchTransporting {
     var uploads: [Data] = []
     var gate: Gate?
     var beforeAck: (() -> Void)?
+    var targets: [[String: String]] = []
+    var workoutUploads: [Data] = []
+    var workoutOffline = false
+    var workoutBadAck = false
+    var workoutSkip = false
+    var beforeWorkoutAck: (() -> Void)?
+    var workoutGate: Gate?
     func cancel() { }
     func post(_ config: WatchConfiguration, path: String, body: Data) async throws -> Data {
         if path == "/api/heart-rate/pending" || path == "/api/watch-devices/verify" {
             if rejectAccount { throw WatchFailure.http(401) }
             if offlineAccount { throw URLError(.notConnectedToInternet) }
-            return try JSONSerialization.data(withJSONObject: ["owner": owner])
+            return try JSONSerialization.data(withJSONObject: ["owner": owner, "workouts": targets])
+        }
+        if path == "/api/heart-rate/import" {
+            workoutUploads.append(body)
+            if let workoutGate { await workoutGate.pause() }
+            if workoutOffline { throw URLError(.networkConnectionLost) }
+            beforeWorkoutAck?()
+            if workoutBadAck { return Data(#"{"ok":true,"storedWorkouts":0}"#.utf8) }
+            return workoutSkip ? Data(#"{"ok":true,"storedWorkouts":0,"skipped":"already_imported"}"#.utf8)
+                : Data(#"{"ok":true,"storedWorkouts":1}"#.utf8)
         }
         uploads.append(body)
         if let gate { await gate.pause() }
@@ -107,6 +129,26 @@ private final class Transport: WatchTransporting {
         return engine
     }
     static func main() async throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let locale = Locale(identifier: "zh_CN")
+        for seconds: Double in [-1, 0, 0.01, 30, 59.99] {
+            try require(WatchRelativeTime.text(for: now.addingTimeInterval(-seconds), now: now, locale: locale) == "刚刚", "Recent sync showed seconds or future time")
+        }
+        for (seconds, components) in [(60.0, DateComponents(minute: -1)), (119.0, DateComponents(minute: -1)),
+                                      (3600.0, DateComponents(hour: -1)), (86400.0, DateComponents(day: -1))] {
+            let expected = RelativeDateTimeFormatter()
+            expected.locale = locale; expected.unitsStyle = .full; expected.dateTimeStyle = .numeric
+            try require(WatchRelativeTime.text(for: now.addingTimeInterval(-seconds), now: now, locale: locale) == expected.localizedString(from: components), "Relative time crossed unit boundary incorrectly")
+        }
+        // A timeout, DNS failure or certificate problem must not be diagnosed as no Wi-Fi.
+        let offlineMessage = WatchFailure.message(URLError(.notConnectedToInternet))
+        try require(offlineMessage.contains("iPhone"), "Offline guidance omits the paired phone route")
+        for code: URLError.Code in [.timedOut, .cannotFindHost, .cannotConnectToHost, .secureConnectionFailed, .cancelled] {
+            let message = WatchFailure.message(URLError(code))
+            try require(message != offlineMessage && !message.contains("热点"), "Distinct network failure misreported as offline")
+        }
+        try require(WatchFailure.message(URLError(.timedOut)).contains("超时"), "Timeout reason lost")
+        try require(WatchFailure.message(URLError(.secureConnectionFailed)).contains("HTTPS"), "TLS guidance lost")
         let config = try WatchConfiguration.validated(server: "https://GYM.example/", owner: "test-owner", token: "Bearer " + token)
         try require(config.server == "https://gym.example" && config.token == token, "Origin/token normalization failed")
         for url in ["http://gym.example", "https://user:pass@gym.example", "https://gym.example/path", "https://gym.example?secret=x", "https://gym.example#x", "https://gym.example:0", "https://gym.example/%2f"] {
@@ -209,7 +251,7 @@ private final class Transport: WatchTransporting {
             try await engine.sync()
             let state = try store.loadState()!
             try require(state.uploaded["sleep"] == 499 && state.ignoredDeletions == 2, "Pagination/deletion accounting wrong")
-            try require(transport.uploads.count == 4, "Full change page did not fetch next page")
+            try require(transport.uploads.count == 2, "Empty pages sent uploads or full change page did not fetch next page")
             for bytes in transport.uploads {
                 let body = try HealthSyncProtocol.object(bytes)
                 try require((body["deleted"] as? [String])?.isEmpty == true, "Unverified Watch deletions forwarded")
@@ -257,6 +299,94 @@ private final class Transport: WatchTransporting {
             let inspected = try await restored.snapshot()
             try require(inspected.state?.summaries.count == 5 && inspected.state?.lastSuccess == nil, "Inspection confused with upload success")
         }
-        print("PASS: configuration, owner isolation, durable replay, strict ACK, disk failures, paging, deletion policy, revocation, disconnect races, state binding, diagnostics.")
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateFormat = "yyyy-MM-dd"; dayFormatter.locale = Locale(identifier: "en_US_POSIX")
+        let target = ["date": dayFormatter.string(from: Date()), "workout_id": "workout-1"]
+        let workoutBytes = Data(#"{"client":"opengym-healthkit","workout_id":"workout-1","batch":true,"sync_workout_time":true,"samples":[{"at":"2026-11-02T09:00:00+08:00","bpm":120}],"apple_workout_id":["apple-1"],"started_at":["2026-11-02T08:00:00+08:00"],"ended_at":["2026-11-02T10:00:00+08:00"]}"#.utf8)
+
+        // Upgrade an existing state file without any new workout fields or a new binding.
+        do {
+            let store = try DiskStore(), health = Health(), transport = Transport()
+            _ = try await connected(health, transport, store)
+            let restored = WatchSyncEngine(health: health, transport: transport, storage: store)
+            let snapshot = try await restored.snapshot()
+            try require(snapshot.connected && snapshot.pendingCount == 0 && snapshot.state?.storedWorkouts == nil, "Legacy state migration failed")
+        }
+
+        // Missing samples are skipped and queried again next manual sync; never manufacture a batch.
+        do {
+            let store = try DiskStore(), health = Health(), transport = Transport()
+            transport.targets = [target]
+            let engine = try await connected(health, transport, store)
+            try await engine.sync()
+            try require(transport.workoutUploads.isEmpty && store.loadState()?.skippedWorkouts == 1, "Empty workout sent or not counted")
+            health.workout = workoutBytes
+            try await engine.sync()
+            try require(health.workoutReads == 2 && transport.workoutUploads == [workoutBytes], "Missing heart samples were not retried")
+            try require(try store.loadState()?.storedWorkouts == 1, "Stored workout not reported")
+        }
+
+        // Query horizon matches iPhone; Watch cannot promise older HealthKit history.
+        do {
+            let store = try DiskStore(), health = Health(), transport = Transport()
+            transport.targets = [["date": "2000-01-01", "workout_id": "old"]]
+            let engine = try await connected(health, transport, store)
+            try await engine.sync()
+            try require(health.workoutReads == 0 && transport.workoutUploads.isEmpty, "Backfill queried beyond history horizon")
+        }
+
+        // Lost network/ACK or failed local commit must replay the same persisted workout bytes.
+        for mode in ["network", "bad-ack", "disk"] {
+            let store = try DiskStore(), health = Health(), transport = Transport()
+            health.workout = workoutBytes; transport.targets = [target]
+            let engine = try await connected(health, transport, store)
+            transport.workoutOffline = mode == "network"
+            transport.workoutBadAck = mode == "bad-ack"
+            if mode == "disk" { transport.beforeWorkoutAck = { store.failNextStateWrite = true } }
+            try await rejects { try await engine.sync() }
+            try require(try store.loadState()?.pendingWorkout == workoutBytes, "Workout failure discarded pending bytes")
+            let pending = try await engine.snapshot()
+            try require(pending.pendingCount == 1, "Pending workout missing from status")
+            transport.workoutOffline = false; transport.workoutBadAck = false; transport.beforeWorkoutAck = nil
+            // The other device may already have filled this workout. Replay accepts only a strict skip ACK.
+            transport.workoutSkip = true; transport.targets = []
+            let restarted = WatchSyncEngine(health: health, transport: transport, storage: store)
+            try await restarted.sync()
+            try require(transport.workoutUploads == [workoutBytes, workoutBytes], "Workout replay changed bytes")
+            try require(try store.loadState()?.pendingWorkout == nil && store.loadState()?.skippedWorkouts == 1, "Duplicate ACK did not finish replay")
+        }
+
+        // Nothing reaches the network until the workout is durably queued.
+        do {
+            let store = try DiskStore(), health = Health(), transport = Transport()
+            health.workout = workoutBytes; transport.targets = [target]
+            health.onWorkout = { store.failNextStateWrite = true }
+            let engine = try await connected(health, transport, store)
+            try await rejects { try await engine.sync() }
+            try require(transport.workoutUploads.isEmpty, "Non-durable workout sent")
+        }
+
+        // Empty and deletion-only pages advance local anchors without HTTP uploads.
+        do {
+            let store = try DiskStore(), health = Health(), transport = Transport()
+            health.sleepPages = [0, 1]; health.deletions = 500
+            let engine = try await connected(health, transport, store)
+            try await engine.sync()
+            try require(transport.uploads.count == 1 && store.loadState()?.ignoredDeletions == 500, "Empty/deletion-only page handling incorrect")
+            try require(try store.loadState()?.uploaded["sleep"] == 1, "Deletion-only page truncated pagination")
+        }
+
+        // A late workout ACK after disconnect cannot restore another account's state.
+        do {
+            let store = try DiskStore(), health = Health(), transport = Transport(), gate = Gate()
+            health.workout = workoutBytes; transport.targets = [target]; transport.workoutGate = gate
+            let engine = try await connected(health, transport, store)
+            let work = Task { try await engine.sync() }
+            await gate.waitUntilEntered()
+            try await engine.disconnect(); await gate.release()
+            try await rejects { try await work.value }
+            try require(try store.loadState() == nil && store.loadConfiguration() == nil, "Late workout ACK restored disconnected state")
+        }
+        print("PASS: daily and workout upload, migration, durable replay, strict ACK, empty pages, history horizon, disk failures, deduplication and disconnect isolation.")
     }
 }

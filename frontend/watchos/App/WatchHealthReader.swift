@@ -3,7 +3,6 @@ import HealthKit
 
 final class WatchHealthReader: WatchHealthReading {
     private let store = HKHealthStore()
-
     private func type(_ metric: WatchMetric) -> HKSampleType {
         switch metric {
         case .sleep: return HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!
@@ -21,6 +20,48 @@ final class WatchHealthReader: WatchHealthReading {
     }
 
     func earliestDate() async -> Date { store.earliestPermittedSampleDate() }
+
+    private func samples(_ sampleType: HKSampleType, predicate: NSPredicate, limit: Int) async throws -> [HKSample] {
+        try Task.checkCancellation()
+        let rows: [HKSample] = try await withCheckedThrowingContinuation { continuation in
+            let query = HKSampleQuery(sampleType: sampleType, predicate: predicate, limit: limit,
+                                      sortDescriptors: [NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)]) { _, rows, error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: rows ?? []) }
+            }
+            store.execute(query)
+        }
+        try Task.checkCancellation()
+        return rows
+    }
+
+    func workoutBody(id: String, day: DateInterval, since: Date) async throws -> Data? {
+        let earliest = await earliestDate()
+        guard day.end >= max(since, earliest) else { return nil }
+        let predicate = HKQuery.predicateForSamples(withStart: day.start, end: day.end, options: .strictStartDate)
+        let workouts = try await samples(HKObjectType.workoutType(), predicate: predicate, limit: 5001)
+            .compactMap { $0 as? HKWorkout }.filter { $0.startDate < day.end }
+        guard workouts.count <= 5000 else { throw WatchFailure.sampleLimit }
+        guard !workouts.isEmpty else { return nil }
+        let windows = workouts.map { HKQuery.predicateForSamples(withStart: $0.startDate, end: $0.endDate, options: .strictStartDate) }
+        let heart = try await samples(type(.heartRate), predicate: NSCompoundPredicate(orPredicateWithSubpredicates: windows), limit: 20001)
+        guard heart.count <= 20000 else { throw WatchFailure.sampleLimit }
+        guard !heart.isEmpty else { return nil }
+        let iso = ISO8601DateFormatter()
+        iso.timeZone = .current; iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let rows = try heart.map { sample -> [String: Any] in
+            guard let quantity = sample as? HKQuantitySample else { throw WatchFailure.invalidHealthData }
+            return ["at": iso.string(from: quantity.startDate),
+                    "bpm": quantity.quantity.doubleValue(for: HKUnit.count().unitDivided(by: .minute()))]
+        }
+        let body: [String: Any] = [
+            "client": "opengym-healthkit", "workout_id": id, "batch": true, "sync_workout_time": true,
+            "samples": rows, "apple_workout_id": workouts.map { $0.uuid.uuidString },
+            "started_at": workouts.map { iso.string(from: $0.startDate) },
+            "ended_at": workouts.map { iso.string(from: $0.endDate) }
+        ]
+        return try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
+    }
 
     func inspect(since: Date) async throws -> [WatchMetricSummary] {
         var result: [WatchMetricSummary] = []

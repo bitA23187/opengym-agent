@@ -1307,3 +1307,21 @@ describe('date arguments must be dates the calendar has', () => {
     }
   })
 })
+/* ---------- a note on one set (v1.4.5) ---------- */
+
+describe('get_workout set notes', () => {
+  test('a set with a note carries it, one without has no note field', () => {
+    const w0 = S.workouts.find(w => (w.entries || []).some(e => (e.sets || []).length > 1))
+    const prev = w0.entries[0].sets[0].note
+    w0.entries[0].sets[0].note = '  grip slipped '
+    _seedStateForTests(S)
+    try {
+      const w = call('get_workout', { workout_id: w0.id })
+      expect(w.entries[0].sets[0].note).toBe('grip slipped')
+      expect('note' in w.entries[0].sets[1]).toBe(false)
+    } finally {
+      if (prev === undefined) delete w0.entries[0].sets[0].note; else w0.entries[0].sets[0].note = prev
+      _seedStateForTests(S)
+    }
+  })
+})

@@ -147,3 +147,20 @@ test('an expired callback is explained without minting another code or touching 
     await h.oauth.provider.verifyAccessToken(old.access_token);
   } finally { clock.mock.restore(); }
 });
+
+
+test('account deletion purges OAuth grants, tokens and pending codes without touching another account', async t => {
+  const h=fixture(t);
+  const alice=await h.exchange(await h.consent());
+  const bob=await h.exchange(await h.consent({uid:'bob'}));
+  const pending=await h.consent();
+  h.oauth.removeUser('alice');
+  assert.equal(h.active('alice').length,0);
+  assert.equal(h.active('bob').length,1);
+  assert.equal(h.store.data.tokens[hash(alice.access_token)],undefined);
+  assert.equal(h.store.data.tokens[hash(alice.refresh_token)],undefined);
+  assert.ok(h.store.data.tokens[hash(bob.access_token)]);
+  await assert.rejects(()=>h.exchange(pending));
+  const persisted=openStore(h.dir);
+  assert.deepEqual(Object.values(persisted.data.grants).map(g=>g.uid),['bob']);
+});

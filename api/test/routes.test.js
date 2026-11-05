@@ -1,3 +1,4 @@
+import './fixture-clock.mjs';
 /* The admin routes, driven with fake server helpers — the layer between the card and the
  * config store, which learned per-provider keys, a base URL, a model list and the "this
  * provider spawns nothing" report. The user routes are exercised through jobs.test.js. */

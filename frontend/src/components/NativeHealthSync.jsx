@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { healthKitStatus, enableHealthKit, syncHealthKit, disableHealthKit, onHealthKitChange } from '../lib/healthkit.js'
 import { t } from '../lib/i18n.js'
+import { fmtAgo } from '../lib/format.js'
 import { Button } from './ui.jsx'
 import HealthInfo from './HealthInfo.jsx'
 import { nav } from '../lib/nav.js'
@@ -8,9 +9,15 @@ import Icon from './Icon.jsx'
 
 export default function NativeHealthSync(props) { return <SyncPanel key={props.owner} {...props} /> }
 function SyncPanel({ owner, onSynced }) {
-  const [status, setStatus] = useState(null), [busy, setBusy] = useState(false), [error, setError] = useState('')
+  const [status, setStatus] = useState(null), [busy, setBusy] = useState(false), [error, setError] = useState(''), [feedback, setFeedback] = useState('')
   const callback = useRef(onSynced), lastSuccess = useRef(null), generation = useRef(0), mutating = useRef(false)
   callback.current = onSynced
+  // Only the relative label ticks; health status remains driven by native events.
+  const [, tick] = useState(0)
+  useEffect(() => {
+    const timer = setInterval(() => tick(n => n + 1), 30000)
+    return () => clearInterval(timer)
+  }, [])
   useEffect(() => {
     let alive = true, reading = false, queued = false, unsubscribe
     const refresh = async () => {
@@ -38,12 +45,13 @@ function SyncPanel({ owner, onSynced }) {
     if (mutating.current) return
     mutating.current = true
     const version = ++generation.current
-    setBusy(true); setError('')
+    setBusy(true); setError(''); setFeedback('')
     try {
       await action()
       const next = await healthKitStatus(owner)
       if (version !== generation.current) return
       setStatus(next)
+      if (next.enabled && !next.error && !next.running && !next.pending && next.lastSuccess) setFeedback(t('Sync completed'))
       if (next.lastSuccess) lastSuccess.current = next.lastSuccess
       await callback.current?.()
     } catch (e) { if (version === generation.current) setError(e.message) }
@@ -67,7 +75,8 @@ function SyncPanel({ owner, onSynced }) {
       </div>
     </div>
     {status?.enabled ? <>
-      <p className="small muted native-health-last-check">{status.lastSuccess ? `${t('Last completed check')}: ${new Date(status.lastSuccess).toLocaleString()}` : t('Waiting for first successful sync.')}</p>
+      <p className="small muted native-health-last-check" role="status" aria-live="polite" title={status.lastSuccess ? new Date(status.lastSuccess).toLocaleString() : undefined}>{status.lastSuccess ? t('Last synced: {0}', fmtAgo(Date.parse(status.lastSuccess))) : t('Waiting for first successful sync.')}</p>
+      {feedback && !status.error && !syncing && <p className="small muted" role="status">{feedback}</p>}
       {!!status.pending && <p className="small muted">{t('A saved batch is waiting to retry.')}</p>}
       {status.error && <p role="alert" className="small native-health-error">{t(status.error)}</p>}
       <Button className="native-health-action" variant="tinted" disabled={syncing} onClick={() => run(() => syncHealthKit(owner))}>{syncing ? t('Syncing…') : t('Sync now')}</Button>

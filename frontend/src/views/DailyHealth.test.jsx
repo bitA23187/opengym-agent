@@ -79,11 +79,13 @@ it('does not request credentials and keeps per-day sample prose out of the trend
  expect(host.querySelector('a[href*="daily-health/v5"]').href).toContain('/daily-health/v5/')
 })
 it('renders selectable sleep stages with an honest missing-details fallback',async()=>{
- const sleep={minutes:120,mainMinutes:120,start:'2026-10-22T16:00:00Z',end:'2026-10-22T18:00:00Z',additionalSessions:0,stageMinutes:{asleepDeep:30,asleepCore:90},timeline:[{start:'2026-10-22T16:00:00Z',end:'2026-10-22T16:30:00Z',category:'asleepDeep'}]};
- api.mockImplementation(path=>Promise.resolve(path.includes('connection')?{connected:true}:{days:[{date:'2026-10-22',sleep:{...sleep,stageMinutes:undefined,timeline:undefined}},{date:'2026-10-23',sleep}]}));
+ const {todayISO}=await import('../lib/format.js'), today=todayISO()
+ const yesterday=new Date(Date.parse(today+'T12:00:00Z')-86400000).toISOString().slice(0,10)
+ const sleep={minutes:120,mainMinutes:120,start:today+'T00:00:00Z',end:today+'T02:00:00Z',additionalSessions:0,stageMinutes:{asleepDeep:30,asleepCore:90},timeline:[{start:today+'T00:00:00Z',end:today+'T00:30:00Z',category:'asleepDeep'}]};
+ api.mockImplementation(path=>Promise.resolve(path.includes('connection')?{connected:true}:{days:[{date:yesterday,sleep:{...sleep,stageMinutes:undefined,timeline:undefined}},{date:today,sleep}]}));
  useStore.setState({user:{id:'alice'}});await act(async()=>root.render(<DailyHealth/>));
  expect(host.querySelector('[aria-label="Sleep stage timeline"]')).not.toBeNull();expect(host.querySelector('.sleep-asleepDeep title').textContent).toContain('Deep sleep');
- const select=host.querySelector('select');await act(async()=>{select.value='2026-10-22';select.dispatchEvent(new Event('change',{bubbles:true}))});
+ const date=host.querySelector('input[aria-label="Wake date"]');await act(async()=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(date,yesterday);date.dispatchEvent(new Event('input',{bubbles:true}));date.dispatchEvent(new Event('change',{bubbles:true}))});
  expect(host.textContent).toContain('Stage details were not uploaded');expect(host.querySelector('[aria-label="Sleep stage timeline"]')).toBeNull();
 });
 it('links calendar selection to daily details and fetches at least 30 days even for 7-day recovery trends',async()=>{
@@ -91,7 +93,7 @@ it('links calendar selection to daily details and fetches at least 30 days even 
  api.mockImplementation(path=>Promise.resolve(path.includes('connection')?{connected:true}:{days:[{date,sleep:{minutes:540,mainMinutes:480,start:date+'T00:00:00Z',end:date+'T08:00:00Z',timeline:[{start:date+'T00:00:00Z',end:date+'T08:00:00Z',category:'asleepCore'}]}}]}));useStore.setState({user:{id:'alice'}})
  await act(async()=>root.render(<DailyHealth/>));expect(host.querySelector('.sleep-daily-value').textContent).toContain('9 h')
  await act(async()=>host.querySelector(`[data-sleep-day="${previous}"]`).dispatchEvent(new MouseEvent('click',{bubbles:true})))
- expect(host.querySelector('.sleep-daily-value').textContent).toBe('—');expect(host.querySelector('[aria-label="Sleep stage timeline"]')).toBeNull()
+ expect(host.querySelector('.sleep-daily-value').textContent).toBe('–');expect(host.querySelector('[aria-label="Sleep stage timeline"]')).toBeNull()
  const trendSeven=[...host.querySelectorAll('.health-toolbar button')].find(el=>el.textContent==='7 days');await act(async()=>trendSeven.click())
  const query=api.mock.calls.map(([path])=>path).filter(path=>path.startsWith('/api/daily-health?')).at(-1),params=new URLSearchParams(query.split('?')[1])
  expect((Date.parse(params.get('to'))-Date.parse(params.get('from')))/86400000).toBe(29)

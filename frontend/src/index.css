@@ -279,6 +279,9 @@ h4.sec{
    55px, so the button pair may drop to a second line — still flush right, hence the auto margin. */
 .bw-head{flex-wrap:wrap;row-gap:8px}
 .bw-head>.row{margin-inline-start:auto}
+.bw-rate{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;width:100%;margin-top:6px;padding:6px 2px;background:none;border:0;color:var(--label-2);font:inherit;text-align:start;cursor:pointer}
+.bw-rate-t{min-width:0}
+.rate-range{display:grid;gap:8px;margin:14px 0 8px}
 
 /* ----------------------------------------------------------------- card -- */
 .card{
@@ -2160,6 +2163,9 @@ button.wl-summary{width:100%;padding:0 0 10px;text-align:start;border-radius:var
 .health-metric h2{font-size:17px}
 .health-value{margin:12px 0 16px;font-variant-numeric:tabular-nums}
 .health-value strong{font-size:32px;line-height:1.15;font-weight:650}
+.health-records-footer{display:flex;justify-content:flex-end;margin-top:4px}
+.health-records-footer>.btn{flex:0 0 auto;width:auto;white-space:nowrap}
+.nutrition-today-card .nutrition-macros,.nutrition-today-card .nutrition-meal-list{border-top:0}
 .health-help p{line-height:1.6;overflow-wrap:anywhere}
 .health-data{margin:20px 0;color:var(--label-2)}
 .health-data summary{padding:12px 0;cursor:pointer;font-size:14px}

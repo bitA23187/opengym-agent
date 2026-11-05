@@ -3,6 +3,8 @@ import { useCallback, useEffect, useState, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { api, appBase } from '../lib/api.js'
+import { cachedRead, invalidateRead, refreshRead } from '../lib/read-cache.js'
+import { dailyHealthPath, dailyHealthPrefix, dailyHealthTimezone as zone } from '../lib/daily-health-read.js'
 import { todayISO } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
 import { Button, Segmented } from '../components/ui.jsx'
@@ -14,7 +16,6 @@ import DetailBack from '../components/DetailBack.jsx'
 import { useHealthKitClient } from '../lib/useHealthKitClient.js'
 import { canUseHealthShortcuts } from '../lib/health-platform.js'
 import { confirmSheet } from '../sheets.jsx'
-const zone = () => Intl.DateTimeFormat().resolvedOptions().timeZone
 export default function DailyHealth() {
   const user = useStore(s => s.user)
   return <DailyHealthView key={user?.id || 'guest'} />
@@ -22,15 +23,18 @@ export default function DailyHealth() {
 function DailyHealthView() {
   const native = useHealthKitClient()
   const { state: routeState } = useLocation()
-  const user = useStore(s => s.user), [range, setRange] = useState(30), [data, setData] = useState(null), [launching, setLaunching] = useState(false), [error, setError] = useState('')
+  const user = useStore(s => s.user), [range, setRange] = useState(30), [data, setData] = useState(() => cachedRead(user, dailyHealthPath(30, zone()))), [launching, setLaunching] = useState(false), [error, setError] = useState('')
   const [sleepDate, setSleepDate] = useState(() => /^\d{4}-\d{2}-\d{2}$/.test(routeState?.date || '') ? routeState.date : ''), [sleepPeriod,setSleepPeriod] = useState(7)
   const generation = useRef(0)
-  const refresh = useCallback(async () => {
-    if (!user || native === null) return
+  const refresh = useCallback(async (force = false) => {
+    if (!user) return
     const version = ++generation.current
-    const from = new Date(Date.parse(todayISO() + 'T12:00:00Z') - (Math.max(30,range) - 1) * 86400000).toISOString().slice(0, 10)
-    try { const d = await api('/api/daily-health?' + new URLSearchParams({ from, to: todayISO(), timezone: zone() })); if (version !== generation.current) return; setData(d); setError('') } catch (e) { if (version === generation.current) setError(e.message) }
-  }, [range, user?.id, native])
+    const path = dailyHealthPath(Math.max(30, range), zone())
+    try {
+      const result = await refreshRead(user, path, () => api(path), force ? 0 : 15000)
+      if (version === generation.current) { setData(result); setError('') }
+    } catch (e) { if (version === generation.current) setError(e.message) }
+  }, [range, user])
   useEffect(() => { refresh(); const resume = () => { if (document.visibilityState !== 'hidden') refresh() }; window.addEventListener('focus', resume); document.addEventListener('visibilitychange', resume); return () => { ++generation.current; window.removeEventListener('focus', resume); document.removeEventListener('visibilitychange', resume) } }, [refresh])
   const download = async () => { try { const result = await api('/api/daily-health/export'); const url = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = 'opengym-daily-health.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000) } catch (e) { setError(e.message) } }
   const sleepWindowStart = new Date(Date.parse(todayISO() + 'T12:00:00Z') - (sleepPeriod - 1) * 86400000).toISOString().slice(0,10)
@@ -57,7 +61,7 @@ function DailyHealthView() {
     <SleepOverview days={data?.days || []} timezone={zone()} selectedDate={sleepSelection} onSelectDate={pickSleepDate} period={sleepPeriod} onPeriodChange={setSleepPeriod} />
     <SleepStages days={(data?.days || []).filter(d => d.date >= sleepMonthStart)} timezone={zone()} selectedDate={sleepSelection} onSelectDate={pickSleepDate} />
     <h2>{t('Recovery trends')}</h2>
-    <div className="row between health-toolbar"><Segmented value={range} onChange={setRange} options={[7, 30, 90].map(n => ({value:n,label:n + ' ' + t('days')}))} /><Button size="sm" variant="ghost" onClick={refresh}>{t('Refresh')}</Button></div>
+    <div className="row between health-toolbar"><Segmented value={range} onChange={setRange} options={[7, 30, 90].map(n => ({value:n,label:n + ' ' + t('days')}))} /><Button size="sm" variant="ghost" onClick={() => refresh(true)}>{t('Refresh')}</Button></div>
     {[['restingHeartRate', 'Resting heart rate', 'bpm', d => d.restingHeartRate?.value], ['hrv', 'HRV (SDNN)', 'ms', d => d.hrv?.value]].map(([key, label, unit, value]) => {
       const days = (data?.days || []).filter(d => value(d) != null && d.date >= new Date(Date.parse(todayISO() + 'T12:00:00Z') - (range - 1) * 86400000).toISOString().slice(0,10)), latest = days.at(-1), points = days.map(d => ({ t: Date.parse(d.date + 'T12:00:00'), y: Math.round(value(d) * 10) / 10, d: d.date }))
       return <section className="card health-metric" key={key}><div className="row between health-heading"><h2>{t(label)}</h2>{latest && <span className="small muted">{latest.date}</span>}</div>{latest && <p className="health-value"><strong>{Math.round(value(latest) * 10) / 10}</strong> <span className="muted">{unit}</span></p>}<LineChart points={points} unit={unit} /></section>
@@ -65,7 +69,7 @@ function DailyHealthView() {
     <p className="small"><Link to="/watch-pair">{t('Manage connected watches')}</Link></p>
     <details className="health-data"><summary>{t('Health data')}</summary>
       <p className="small muted">{t('Health data stays on your server. Server backups include it; app JSON backups do not. Use the export below for a separate copy.')}</p>
-      <div className="health-actions"><Button size="sm" onClick={download}>{t('Export daily health')}</Button><Button size="sm" variant="danger" onClick={() => confirmSheet({ title: t('Delete daily health data?'), message: t('This removes sleep, resting heart rate and HRV from this server.'), onConfirm: async () => { try { await api('/api/daily-health', { method: 'DELETE' }); await refresh() } catch (e) { setError(e.message) } } })}>{t('Delete daily health data')}</Button></div>
+      <div className="health-actions"><Button size="sm" onClick={download}>{t('Export daily health')}</Button><Button size="sm" variant="danger" onClick={() => confirmSheet({ title: t('Delete daily health data?'), message: t('This removes sleep, resting heart rate and HRV from this server.'), onConfirm: async () => { try { await api('/api/daily-health', { method: 'DELETE' }); invalidateRead(user, dailyHealthPrefix); setData(null); await refresh(true) } catch (e) { setError(e.message) } } })}>{t('Delete daily health data')}</Button></div>
     </details>
     {error && <p role="alert" style={{ color: 'var(--red)' }}>{error}</p>}
   </div>

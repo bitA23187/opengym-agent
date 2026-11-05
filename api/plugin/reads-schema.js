@@ -7,3 +7,11 @@ export function localToday(timezone,now=new Date()) {
   const parts=new Intl.DateTimeFormat('en-US',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
   return ['year','month','day'].map(k=>parts.find(p=>p.type===k).value).join('-');
 }
+
+export const detailLevel=z.enum(['compact','standard','full']);
+export const versionReadShape={detail_level:detailLevel.default('compact'),version_id:z.string().min(1).max(64).optional()};
+export function versionSummary(text,level) {
+  if(level==='compact'&&text.includes('\n'))text=text.split('\n').slice(1).join('\n');
+  const max=level==='compact'?180:level==='standard'?600:Infinity;
+  return {summary:text.length>max?text.slice(0,max)+'…':text,summary_truncated:text.length>max};
+}

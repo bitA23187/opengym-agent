@@ -1,10 +1,14 @@
 import { z } from 'zod';
-import { isoDate,localToday } from './reads-schema.js';
+import { isoDate,localToday,versionReadShape,versionSummary } from './reads-schema.js';
 import { modeOf } from '../../frontend/src/lib/history.js';
 import { syncSideAggregate } from '../../frontend/src/lib/workout-model.js';
+import { observationSchema } from './activity-fields-schema.js';
+import { cleanObservations } from '../../frontend/src/lib/activity-fields.js';
+import { activitySetFields,climbingRouteSchema } from './activity-schema.js';
+import { validateActivitySet,cleanClimbingRoutes } from '../../frontend/src/lib/activity-data.js';
 import { hash } from './store.js';
 
-const setFields=z.object({weight:z.number().min(0).max(1500).optional(),reps:z.number().int().min(1).max(100).optional(),
+const setFields=z.object({note:z.string().trim().max(140).nullable().optional(),...Object.fromEntries(Object.entries(activitySetFields).map(([k,schema])=>[k,schema.nullable().optional()])),weight:z.number().min(0).max(1500).optional(),reps:z.number().int().min(1).max(100).optional(),
   seconds:z.number().int().min(1).max(7200).optional(),minutes:z.number().positive().max(600).optional(),
   speed:z.number().min(0).max(1000).optional(),incline:z.number().min(-20).max(45).optional(),
   rir:z.number().min(0).max(10).nullable().optional(),rpe:z.number().min(0).max(10).nullable().optional(),failure:z.boolean().optional()}).strict()
@@ -14,8 +18,10 @@ export const workoutPatchSchema=z.object({
   date:isoDate.optional(),started_at:z.string().datetime({offset:true}).optional(),
   session_note:z.string().trim().min(1).max(500).nullable().optional(),note_mode:z.enum(['replace','append']).optional(),
   entry_notes:z.array(z.object({entry_index:z.number().int().min(0).max(100),...noteFields,note_pin:z.boolean().optional()}).strict()).min(1).max(40).optional(),
+  entry_observations:z.array(z.object({entry_index:z.number().int().min(0).max(100),observations:z.array(observationSchema).min(1).max(200)}).strict()).min(1).max(40).optional(),
+  entry_activities:z.array(z.object({entry_index:z.number().int().min(0).max(100),routes:z.array(climbingRouteSchema).min(1).max(100)}).strict()).min(1).max(40).optional(),
   set_edits:z.array(z.object({entry_index:z.number().int().min(0).max(100),set_index:z.number().int().min(0).max(100),side:z.enum(['L','R']).optional(),fields:setFields}).strict()).min(1).max(100).optional(),
-}).strict().refine(v=>['date','started_at','session_note','entry_notes','set_edits'].some(k=>Object.hasOwn(v,k)),'Provide workout changes');
+}).strict().refine(v=>['date','started_at','session_note','entry_notes','entry_activities','entry_observations','set_edits'].some(k=>Object.hasOwn(v,k)),'Provide workout changes');
 const note=(old,text,mode)=>{
   const result=text==null?null:mode==='append'&&old?old+'\n'+text:text;
   if(result?.length>500)throw Error('Appended note exceeds 500 characters.');
@@ -43,6 +49,18 @@ export function patchWorkout(original,p,timezone,today) {
     if(n.note_pin!=null) {if(n.note_pin&&!e.note)throw Error('Pinned note needs text.');if(n.note_pin)e.notePin=true;else delete e.notePin;}
   }
   seen.clear();
+  for(const edit of p.entry_observations||[]) {
+    if(seen.has(edit.entry_index))throw Error('Each measurement entry can be edited only once.');seen.add(edit.entry_index);
+    const e=w.entries?.[edit.entry_index];if(!e?.measurements)throw Error('Entry has no declared measurements.');
+    e.measurements.observations=cleanObservations(edit.observations,e.measurements.fields);
+  }
+  seen.clear();
+  for(const edit of p.entry_activities||[]) {
+    if(seen.has(edit.entry_index))throw Error('Each activity can be edited only once.');seen.add(edit.entry_index);
+    const e=w.entries?.[edit.entry_index];if(e?.activity?.type!=='climbing')throw Error('Climbing entry index not found.');
+    e.activity.routes=cleanClimbingRoutes(edit.routes);
+  }
+  seen.clear();
   for(const edit of p.set_edits||[]) {
     const key=`${edit.entry_index}:${edit.set_index}:${edit.side||''}`;
     if(seen.has(key))throw Error('Each set/side can be edited only once.');seen.add(key);
@@ -56,6 +74,10 @@ export function patchWorkout(original,p,timezone,today) {
       if(value==null)delete set[k];else set[k]=value;
       if(key==='failure')delete set.f;
     }
+    if(Object.hasOwn(f,'elapsed_seconds')&&f.elapsed_seconds!=null&&!Object.hasOwn(f,'minutes'))set.min=f.elapsed_seconds/60;
+    if(Object.hasOwn(f,'minutes')&&!Object.hasOwn(f,'elapsed_seconds'))delete set.elapsed_seconds;
+    validateActivitySet(set,mode);
+    if(set.type==='restpause'&&set.clusters?.length&&set.r!==set.clusters.reduce((n,c)=>n+c.r,0))throw Error('Rest-pause reps must equal cluster total; use a complete workout replacement to change the bursts.');
     if(set.rir!=null&&set.rpe!=null)throw Error('Use either RIR or RPE; explicitly clear the other when switching.');
     if(edit.side)syncSideAggregate(row);
     if(set.drops?.length&&set.drops[0].w>=set.w)throw Error('A corrected dropset main load must exceed its first drop.');
@@ -73,8 +95,9 @@ export function recordTrainingVersion(cur,next,draft) {
   if(Buffer.byteLength(JSON.stringify(history))>1024*1024)throw Error('Training undo history limit exceeded.');
   next.pluginTrainingHistory=history;
 }
-export function trainingVersions(s) {
-  return (s.pluginTrainingHistory||[]).slice().reverse().map(v=>({id:v.id,workout_id:v.workout_id,at:v.at,summary:v.summary,can_undo:(!v.unit||v.unit===(s.unit||'kg'))&&workoutFingerprint((s.workouts||[]).find(w=>w.id===v.workout_id)||null)===v.after_hash}));
+export function trainingVersions(s,input={}) {
+  const p=z.object(versionReadShape).strict().parse(input);
+  return (s.pluginTrainingHistory||[]).filter(v=>!p.version_id||v.id===p.version_id).slice().reverse().map(v=>({id:v.id,workout_id:v.workout_id,at:v.at,...versionSummary(v.summary,p.detail_level),can_undo:(!v.unit||v.unit===(s.unit||'kg'))&&workoutFingerprint((s.workouts||[]).find(w=>w.id===v.workout_id)||null)===v.after_hash}));
 }
 
 export const publicWorkout=w=>w?JSON.parse(JSON.stringify(w,(k,v)=>k==='bw'||['_ts','_f','_u'].includes(k)?undefined:v)):null;
